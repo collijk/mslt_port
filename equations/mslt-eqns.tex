@@ -1,0 +1,82 @@
+\documentclass[12pt]{scrartcl}
+
+\usepackage{fontspec}
+
+%% %% Set the font for all text and plain mathematics.
+%% \setsansfont[Mapping=tex-text,Numbers={Lining}]{Noto Sans}
+%% %% Set the font for \mathrm{} text.
+%% \setmainfont[Mapping=tex-text,Numbers={Lining}]{Noto Serif}
+%% \setmonofont[Mapping=tex-text,Numbers={Lining}]{Noto Sans Mono}
+
+\usepackage{amsmath}
+\usepackage{booktabs}
+
+\DeclareMathOperator{\APC}{APC}
+\DeclareMathOperator{\ACMR}{ACMR}
+\DeclareMathOperator{\PD}{PD}
+\DeclareMathOperator{\PY}{PY}
+\DeclareMathOperator{\LE}{LE}
+\DeclareMathOperator{\Pop}{Pop}
+\DeclareMathOperator{\Deaths}{Deaths}
+\DeclareMathOperator{\YLDrate}{YLDrate}
+
+\begin{document}
+
+\section*{MSLT equations, BAU}
+
+Inputs are \(\ACMR(a,t_0)\) and \(APC(a, t)\).
+Interventions are evaluated by comparing the business-as-usual values of
+\(\PY_{adj}(a, t)\) and \(\LE_{adj}(a, t)\) to their intervention-specific
+values.
+
+\begin{align*}
+  \ACMR(a, t+1) &= \ACMR(a, t) \times \left[ 1 + \frac{\APC(a, t)}{100}\right] \\
+  \ACMR(a, t_0+n) &= \ACMR(a, t_0) \times
+  \prod_{k=0}^{n-1} \left[ 1 + \frac{\APC(a, t_0 + k)}{100} \right] \\
+  \PD(a, t) &= P(t < T_{death,a} < t + 1 | T_{death,a} > t) = 1 - e^{-\ACMR(a, t)} \\
+  \PD_{cum}(a, t_0, n) &= \prod_{k = 0}^n \left[ 1 - e^{-\ACMR(a+k, t_0+k)} \right] \\
+  \Deaths(a, t_0) &= \Pop(a, t_0) \times \PD(a, t_0) \\
+  \Deaths_{cum}(a+n, t_0+n) &= \Pop(a, t_0) \times \PD_{cum}(a, t_0, n) \\
+  \Pop(a+1, t_0+1) &= \Pop(a, t_0) - \Deaths(a, t_0) \\
+  &= \Pop(a, t_0) \times (1 - \PD(a, t_0)) \\
+  \Pop(a+n, t_0+n) &= \Pop(a, t_0) \prod_{k=0}^{n-1}\left[1 - \PD(a+k, t_0+k)\right]\\
+  \PY(a, t_0) &= \Pop(a, t_0) \times \left(1 - \frac{\PD(a,t_0)}{2}\right) \\
+  \PY(a+n, t_0+n) &= \Pop(a, t_0) \prod_{k=0}^{n-1} \left[ 1 - \PD(a+k, t_0+k) \right]
+  \times \left(1 - \frac{\PD(a+k+1, t_0+k+1}{2}\right) \\
+  \LE(a, t) &= \sum_{k=0}^{a_{\max}-a} \frac{\PY(a+k,t+k)}{\Pop(a+k, t+k)} \\
+  \YLDrate &: a \mapsto \YLDrate \\
+  \PY_{adj}(a, t) &= \PY(a, t) \times \left[1 - \YLDrate(a)\right] \\
+  \LE_{adj}(a, t) &= \sum_{k=0}^{a_{\max}-a} \frac{\PY_{adj}(a+k, t+k)}{\Pop(a+k, t+k)}
+\end{align*}
+
+\begin{table}
+  \centering
+  \begin{tabular}{ll}
+    \toprule
+    Symbol & Definition \\
+    \midrule
+    \(\ACMR\) & All-cause mortality rate \\
+    \(\APC\) & Annual percent change in \(\ACMR\) \\
+    \(\PD\) & Probability of death in a cohort over a single year \\
+    \(\Pop\) & Number of individuals in a cohort \\
+    \(\PY\) & Person-years in a cohort over a single year \\
+    \(\LE\) & Life expectancy, relative to current age \\
+    \(\YLDrate\) & Year-life disability discount rate \\
+    \(\PY_{adj}\) & Person-years, adjusted for YLD \\
+    \(\LE_{adj}\) & Life expectancy, relative to current age and adjusted for YLD \\
+    \bottomrule
+  \end{tabular}
+  \caption{Definition of symbols used in equations.}
+  \label{tbl:defns}
+\end{table}
+
+\section*{Lung cancer equations}
+
+\begin{align*}
+  S_i(t+1) &= \frac{2 \cdot (v_i - w_i) \cdot%
+    \left[ S_i(t) \cdot(r_i + f_i + m_i) + C_i(t) \cdot r_i \right]%
+    + S_i(t) \cdot (v_i \cdot (q_i - l_i) + w_i \cdot (q_i + l_i)%
+  }{2 \cdot q_i}
+\end{align*}
+
+\end{document}
