@@ -20,6 +20,12 @@
 \DeclareMathOperator{\Deaths}{Deaths}
 \DeclareMathOperator{\YLDrate}{YLDrate}
 
+\DeclareMathOperator{\PIF}{PIF}
+\DeclareMathOperator{\CPIF}{CPIF}
+\DeclareMathOperator{\IPIF}{InterventionPIF}
+\newcommand{\FPIF}{\ensuremath{1 - \PIF_{\mathrm{Final}}}}
+
+\DeclareMathOperator{\Prev}{Prev}
 \begin{document}
 
 \section*{MSLT equations, BAU}
@@ -78,5 +84,77 @@ values.
     + S_i(t) \cdot (v_i \cdot (q_i - l_i) + w_i \cdot (q_i + l_i)%
   }{2 \cdot q_i}
 \end{align*}
+
+\section*{Intervention effect on a disease}
+
+An intervention's effect is defined by the ``Intervention (1 - PIF)'', which is an input into the disease worksheet. It has a value for every year of each cohort's life, and is generally close to unity.
+
+The next column is the ``Cumulative PIF'' (\(\CPIF\)):
+
+\begin{equation*}
+  \CPIF(t) = \CPIF(t-1) + (1 - \IPIF(t))
+\end{equation*}
+
+The ``Final (1 - PIF)'' (\(\FPIF\)) is:
+
+\begin{align*}
+  \FPIF &= \frac{1 - \left(\CPIF(t_\mathrm{upr} - \CPIF(t_\mathrm{lwr}\right)%
+  }{t_\mathrm{upr} - t_\mathrm{lwr}} \\
+  t_\mathrm{upr} &= t_0 + X \quad \text{(e.g., 10 years before any effect)} \\
+  t_\mathrm{lwr} &= t_\mathrm{upr} - \min(t_0, t_\mathrm{upr} - Y)%
+  \quad \text{(e.g., maximal effect takes 20 years)} \\
+\end{align*}
+
+We're effectively applying a mean PIF over N years. It's not a serious problem, there is no knowledge as to what shape this curve should take. The "Final (1 - PIF)" is then multiplied by BAU incidence to give the new incidence under the intervention.
+
+\section*{Intervention on a risk factor}
+
+The risk factor may then generate a (1 - PIF) across any number of diseases.
+
+The ``Intervention (1 - PIF)'' is average RR \textbf{after} the intervention, divided by the average RR \textbf{before} the intervention.
+
+The average RR is the dot product of (a) the proportion of the population in
+each categorical bin (for each age \(\times\) gender cohort); and (b) the
+relative risk associated with each bin.
+
+The inputs to the intervention are:
+
+\begin{itemize}
+\item Some description of the business-as-usual population in relation to a risk factor. For example, physical activity is divided into 7 different bins.
+  \begin{itemize}
+  \item The proportion of people in each categorical bin.
+  \item The average value of the risk for the people in each categorical bin; this is typically available as/estimated from population data.
+  \end{itemize}
+\item An intervention can, e.g., increase physical activity across all bins (or only some bins, e.g., lowest level of activity). It may instead move people between bins (e.g., quitting smoking).
+  \begin{itemize}
+  \item So a risk may change, or quantities of people in a bin may change. Or perhaps even both may occur?
+  \item At baseline, work out the relative risk of being in that bin. Some bin will be a chosen reference and have a relative risk of 1. This decision is typically determined by the source of RR data.
+  \end{itemize}
+\end{itemize}
+
+If you plot relative risk (y-axis) vs risk factor (x-axis), the response could conceivably have \emph{any shape}. So we will have \emph{some function} that characterises this relationship, based on population data. You then need to work out the \emph{average value of the relative risk} across each of the categorical bins, for each of your demographic population bins. For our purposes, what matters is that this function can be evaluated over a reasonably dense set of points, in order to approximate the average RR for each categorical bin.
+
+This relationship is typically categorical (i.e., already binned) or exponential, but in Anja's model it may also take the form \(RR \cdot \mathrm{exposure}^{0.25}\).
+
+You then evaluate this functional form for your intervention, which may result in lower RRs in some bins (e.g., increased physical activity without moving people to a different bin) or may not change the RRs at all (if the effect of the intervention is simply to move people between bins).
+
+Then we can calculate the average RR under the intervention (reminder: the dot product of (a) the proportion of the population in each categorical bin (for each age \(\times\) gender cohort); and (b) the relative risk associated with each bin).
+
+\section*{Diabetes}
+
+An intervention may have some effect on diabetes prevalence (i.e., there is still an intervention PIF). But diabetes is \emph{also} a risk factor for CHD and stroke. Aside: you have to reduce the CFR for diabetes because some will die of CHD and stroke instead.
+
+So for CHD and stroke, the same stuff happens as for other intervention effects on disease (see above). But you have an additional reduction because the intervention may also reduce diabetes prevalence, which indirectly reduces CHD and stroke prevalence.
+
+People with diabetes have a higher risk of contracting another disease (in this case, CHD and/or stroke), relative to people without diabetes. We then compare how the overall risk of contracting this disease has changed as a result of the intervention, based on baseline prevalence (\(\Prev\)) and prevalence after the intervention (\(\Prev'\)):
+
+\begin{equation*}
+  \frac{\Prev'(\mathrm{diabetes}) \cdot RR_\mathrm{db\mapsto{}X}%
+    + (1 - \Prev'(\mathrm{diabetes}))}{%
+  \Prev(\mathrm{diabetes}) \cdot RR_\mathrm{db\mapsto{}X}%
+    + (1 - \Prev(\mathrm{diabetes}))}
+\end{equation*}
+
+The final or effective (1 - PIF) is the product of the (1 - PIF) \emph{without diabetes}, and this \emph{diabetes-specific} factor.
 
 \end{document}
