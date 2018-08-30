@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from mslt_port.data import (get_incidence, get_remission, get_excess_mortality,
-                            get_prevalence, get_disability)
+                            get_prevalence, get_disability, AGE_GROUP_END)
 
 
 class Disease:
@@ -37,7 +37,7 @@ class Disease:
                                                  requires_columns=['age', 'sex'])
         self.population_view = builder.population.get_view(columns)
 
-        builder.event.register_listener('time_step_prepare', self.on_time_step_prepare)
+        builder.event.register_listener('time_step__prepare', self.on_time_step_prepare)
 
     def on_initialize_simulants(self, pop_data):
         C = 1000 * self.initial_prevalence(pop_data.index)
@@ -57,10 +57,9 @@ class Disease:
 
     def on_time_step_prepare(self, event):
         idx = event.index
-
         pop = self.population_view.get(idx)
         S, C = pop[f'{self.name}_S'], pop[f'{self.name}_C']
-        S_int, C_int = pop[f'{self.name}_S'], pop[f'{self.name}_C']
+        S_int, C_int = pop[f'{self.name}_S_intervention'], pop[f'{self.name}_C_intervention']
 
         new_S = self.update_S(
             S, C, self.incidence(idx), self.remission(idx), self.excess_mortality(idx),
@@ -79,7 +78,6 @@ class Disease:
             S_int, C_int, self.incidence_intervention(idx), self.remission(idx), self.excess_mortality(idx),
             self.l_intervention(idx), self.q_intervention(idx), self.w_intervention(idx), self.v_intervention(idx)
         )
-
         pop_update = pd.DataFrame({f'{self.name}_S': new_S,
                                    f'{self.name}_C': new_C,
                                    f'{self.name}_S_previous': S,
@@ -88,8 +86,7 @@ class Disease:
                                    f'{self.name}_C_intervention': new_C_intervention,
                                    f'{self.name}_S_intervention_previous': S_int,
                                    f'{self.name}_C_intervention_previous': C_int},
-                                  index=idx)
-
+                                  index=pop.index)
         self.population_view.update(pop_update)
 
     def mortality_adjustment(self, index, mortality_rate):
@@ -176,8 +173,12 @@ class Disease:
 
     @staticmethod
     def update_S(S, C, i, r, f, l, q, w, v):
-        return (2 * (v - w) * (S * (f + r) + C * r) + S * (v * (q - l) + w * (q + l))) / (2 * q)
+        new_S = (2*(v - w)*(S*(f + r) + C*r) + S*(v*(q - l) + w*(q + l))) / (2 * q)
+        new_S[q == 0] = S[q == 0]
+        return new_S
 
     @staticmethod
     def update_C(S, C, i, r, f, l, q, w, v):
-        return (2 * (v - w) * ((f + r) * (S + C) - l * C) - C * q * (v + w)) / (2 * q)
+        new_C = -(v - w)*(2*((f + r)*(S + C) - l*S) - l*C) + (v + w)*q*C / (2 * q)
+        new_C[q == 0] = C[q == 0]
+        return new_C
