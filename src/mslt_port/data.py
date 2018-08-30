@@ -179,54 +179,25 @@ def get_adjusted_life_expectancy():
 
 def get_incidence(disease):
     df = get_disease_data(disease)
-    return df[['year', 'age', 'sex', 'incidence']].set_index(['year', 'age', 'sex'])
+    return df[['year', 'age', 'sex', 'incidence']]
 
 
 def get_remission(disease):
     df = get_disease_data(disease)
-    return df[['year', 'age', 'sex', 'remission']].set_index(['year', 'age', 'sex'])
+    return df[['year', 'age', 'sex', 'remission']]
 
 
 def get_excess_mortality(disease):
     df = get_disease_data(disease)
-    return df[['year', 'age', 'sex', 'excess_mortality']].set_index(['year', 'age', 'sex'])
+    return df[['year', 'age', 'sex', 'excess_mortality']]
 
 
 def get_prevalence(disease):
     df = get_disease_data(disease)
-    return df[['year', 'age', 'sex', 'prevalence']].set_index(['year', 'age', 'sex'])
+    return df[['year', 'age', 'sex', 'prevalence']]
 
 
 def get_disability(disease):
     df = get_disease_data(disease)
-    return df[['year', 'age', 'sex', 'disability_rate']].set_index(['year', 'age', 'sex'])
+    return df[['year', 'age', 'sex', 'disability_rate']]
 
-
-def get_intermediary_parameters(disease):
-    i = get_incidence(disease)
-    r = get_remission(disease)
-    f = get_excess_mortality(disease)
-    l = i.incidence + r.remission + f.excess_mortality
-    l.name = 'l'
-    l
-
-    q = np.sqrt(i.incidence ** 2 + r.remission ** 2 + f.excess_mortality ** 2
-                + i.incidence * r.remission
-                + f.excess_mortality * r.remission
-                - i.incidence * f.excess_mortality)
-    q.name = 'q'
-
-    w = np.exp(-(l + q) / 2)
-    w.name = 'w'
-    v = np.exp(-(l - q) / 2)
-    v.name = 'v'
-
-    return l, q, w, v
-
-
-def update_susceptible(S, C, i, r, f, l, q, w, v, t):
-    return (2 * (v - w) * (S * (f + r) + C * r) + S * (v * (q - l) + w * (q + l))) / (2 * q)
-
-
-def update_prevalent(S, C, i, r, f, l, q, w, v, t):
-    return (2 * (v - w) * ((f + r) * (S + C) - l * C) - C * q * (v + w)) / (2 * q)
