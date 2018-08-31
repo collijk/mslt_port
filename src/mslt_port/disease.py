@@ -179,6 +179,6 @@ class Disease:
 
     @staticmethod
     def update_C(S, C, i, r, f, l, q, w, v):
-        new_C = -(v - w)*(2*((f + r)*(S + C) - l*S) - l*C) + (v + w)*q*C / (2 * q)
+        new_C = -((v - w)*(2*((f + r)*(S + C) - l*S) - l*C) - (v + w)*q*C) / (2 * q)
         new_C[q == 0] = C[q == 0]
         return new_C
