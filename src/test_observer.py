@@ -9,9 +9,10 @@ from mslt_port.observer import AdjustedPersonYears
 
 
 config = data.get_default_config()
-py_adj = AdjustedPersonYears()
+py_adj = AdjustedPersonYears('PYadj.csv')
 sim = setup_simulation([BasePopulation(), Mortality(), Disability(),
                         Disease('chd'), py_adj], config)
 
 sim.run()
-py_adj.to_csv('PYadj.csv')
+# NOTE: this is required to trigger the 'simulation_end' event.
+sim.finalize()

@@ -39,6 +39,9 @@ class AdjustedPersonYears:
     get_table() method, or saved to a CSV file by calling the to_csv() method.
     """
 
+    def __init__(self, output_file=None):
+        self.output_file = output_file
+
     def setup(self, builder):
         """
         """
@@ -55,7 +58,6 @@ class AdjustedPersonYears:
         self.population_view = builder.population.get_view(view_cols)
         self.clock = builder.time.clock()
         builder.event.register_listener('collect_metrics', self.on_collect_metrics)
-        # TODO: this doesn't seem to result in self.at_end() being called.
         builder.event.register_listener('simulation_end', self.write_output)
         self.idx_cols = ['age', 'sex', 'year']
 
@@ -133,4 +135,5 @@ class AdjustedPersonYears:
         """
         Save the adjusted person-years table at the end of the simulation.
         """
-        raise NotImplementedError('This exception is not raised')
+        if self.output_file is not None:
+            self.to_csv(self.output_file)
