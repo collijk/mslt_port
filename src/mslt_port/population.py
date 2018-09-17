@@ -45,5 +45,5 @@ class Mortality:
 class Disability:
 
     def setup(self, builder):
-        yld_rate = builder.lookup.build_table(get_yld_rate())
+        yld_rate = builder.lookup.build_table(get_yld_rate(), parameter_columns=('age',))
         builder.value.register_rate_producer('yld_rate', source=yld_rate)
