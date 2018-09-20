@@ -39,8 +39,15 @@ class AdjustedPersonYears:
     get_table() method, or saved to a CSV file by calling the to_csv() method.
     """
 
-    def __init__(self, output_file=None):
-        self.output_file = output_file
+    def __init__(self, output_py_file=None, output_le_file=None):
+        """
+        :param output_py_file: The name of the CSV file in which to record the
+            adjusted person-years data.
+        :param output_le_file: The name of the CSV file in which to record the
+            adjusted life expectancy data.
+        """
+        self.output_py_file = output_py_file
+        self.output_le_file = output_le_file
 
     def setup(self, builder):
         """
@@ -71,30 +78,44 @@ class AdjustedPersonYears:
         years = range(min_year, YEAR_END + 1)
         # NOTE: columns must be in the same order as self.idx_cols.
         rows = list(itertools.product(ages, sexes, years))
-        self.data = pd.DataFrame(rows, columns=self.idx_cols)
-        self.data.set_index(self.idx_cols)
-        self.data['PYadj'] = np.nan
+        self.data_py = pd.DataFrame(rows, columns=self.idx_cols)
+        self.data_py.set_index(self.idx_cols)
+        self.data_py['PYadj'] = np.nan
+        # Also create a table to record the adjusted life expectancy for each
+        # cohort.
+        le_rows = list(itertools.product(ages, sexes, [min_year]))
+        self.data_le = pd.DataFrame(le_rows, columns=self.idx_cols)
+        self.data_le.set_index(self.idx_cols)
+        self.data_le['LEadj'] = 0.0
 
     def on_initialize(self, pop_data):
         """
         Calculate adjusted person-years before the first time-step.
         """
         idx = pop_data.index
-        year = self.clock().year
+        # Record the year at which the simulation started.
+        self.year_0 = self.clock().year
         acm_rate_now = self.acm_rate(idx)
         yld_rate_now = self.yld_rate(idx)
         prob_death = 1 - np.exp(- acm_rate_now)
         pop = self.population_view.get(idx)
-        pop['year'] = year
+        pop['year'] = self.year_0
         pop.set_index(self.idx_cols)
         PY = pop['population'] * (1 - 0.5 * prob_death)
         PY_adj = PY * (1 - yld_rate_now)
-        self.create_PYadj_table(pop['age'].min(), year)
-        pop = pop.loc[:, self.idx_cols]
+        self.create_PYadj_table(pop['age'].min(), self.year_0)
         pop['PYadj'] = PY_adj
-        df = self.data.merge(pop, on=self.idx_cols, how='left', suffixes=('', '_new'))
+        df = self.data_py.merge(pop, on=self.idx_cols, how='left', suffixes=('', '_new'))
         new_vals = df['PYadj_new'].notna()
-        self.data.loc[new_vals, 'PYadj'] = df.loc[new_vals, 'PYadj_new']
+        self.data_py.loc[new_vals, 'PYadj'] = df.loc[new_vals, 'PYadj_new']
+        # Calculate the adjusted life expectancy for each cohort.
+        pop['LEadj'] = pop['PYadj'] / pop['population']
+        df = self.data_le.merge(pop.loc[:, self.idx_cols + ['LEadj']],
+                               on=self.idx_cols, how='left',
+                               suffixes=('', '_new'))
+        new_vals = df['LEadj_new'].notna()
+        self.data_le.loc[new_vals, 'LEadj'] = (self.data_le.loc[new_vals, 'LEadj']
+                                               + df.loc[new_vals, 'LEadj_new'])
 
     def on_collect_metrics(self, event):
         """
@@ -114,26 +135,49 @@ class AdjustedPersonYears:
         PY = pop['population'] * (1 - 0.5 * prob_death)
         PY_adj = PY * (1 - yld_rate_now)
         pop['PYadj'] = PY_adj
-        df = self.data.merge(pop, on=self.idx_cols, how='left', suffixes=('', '_new'))
+        df = self.data_py.merge(pop, on=self.idx_cols, how='left', suffixes=('', '_new'))
         if len(df.index) > 0:
             new_vals = df['PYadj_new'].notna()
-            self.data.loc[new_vals, 'PYadj'] = df.loc[new_vals, 'PYadj_new']
+            self.data_py.loc[new_vals, 'PYadj'] = df.loc[new_vals, 'PYadj_new']
+            # Calculate the adjusted life expectancy for each cohort.
+            pop['LEadj'] = pop['PYadj'] / pop['population']
+            pop['age'] = pop['age'] - pop['year'] + self.year_0
+            pop['year'] = self.year_0
+            df = self.data_le.merge(pop.loc[:, self.idx_cols + ['LEadj']],
+                                    on=self.idx_cols, how='left',
+                                    suffixes=('', '_new'))
+            new_vals = df['LEadj_new'].notna()
+            self.data_le.loc[new_vals, 'LEadj'] = (self.data_le.loc[new_vals, 'LEadj']
+                                                   + df.loc[new_vals, 'LEadj_new'])
 
-    def get_table(self):
+    def get_adj_py(self):
         """
         Return a Pandas data frame that contains the adjusted person-years for
         each cohort at each year of the simulation.
         """
-        mask = self.data['PYadj'].notna()
-        return self.data.loc[mask].sort_index()
+        mask = self.data_py['PYadj'].notna()
+        return self.data_py.loc[mask].sort_index()
 
-    def to_csv(self, filename):
+    def get_adj_le(self):
+        """
+        Return a Pandas data frame that contains the adjusted life expectancy
+        for each cohort at the starting year of the simulation.
+        """
+        return self.data_le
+
+    def adj_py_to_csv(self, filename):
         """Save the adjusted person-years table to a CSV file."""
-        self.get_table().to_csv(filename, index=False)
+        self.get_adj_py().to_csv(filename, index=False)
+
+    def adj_le_to_csv(self, filename):
+        """Save the adjusted life expectancy table to a CSV file."""
+        self.get_adj_le().to_csv(filename, index=False)
 
     def write_output(self, event):
         """
         Save the adjusted person-years table at the end of the simulation.
         """
-        if self.output_file is not None:
-            self.to_csv(self.output_file)
+        if self.output_py_file is not None:
+            self.adj_py_to_csv(self.output_py_file)
+        if self.output_le_file is not None:
+            self.adj_le_to_csv(self.output_le_file)
