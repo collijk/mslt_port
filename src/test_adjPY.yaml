@@ -17,7 +17,7 @@ components:
         disease:
             - Disease('chd')
         observer:
-            - AdjustedPersonYears('adjusted-person-years.csv', 'adjusted-life-exp.csv')
+            - AdjustedPYandLE('adjusted-py-le.csv')
 
 # These settings are taken from mslt_port.data.get_default_config().
 configuration:

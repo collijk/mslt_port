@@ -32,22 +32,20 @@ class DiseaseObserver:
         pass
 
 
-class AdjustedPersonYears:
+class AdjustedPYandLE:
     """
-    This class calculates the adjusted person-years for each cohort at each
-    year of the simulation. The results can be obtained by calling the
-    get_table() method, or saved to a CSV file by calling the to_csv() method.
+    This class calculates the adjusted person-years and the adjusted
+    life-expectancy for each cohort at each year of the simulation. The
+    results can be obtained by calling the get_table() method, or saved to a
+    CSV file by calling the to_csv() method.
     """
 
-    def __init__(self, output_py_file=None, output_le_file=None):
+    def __init__(self, output_file=None):
         """
-        :param output_py_file: The name of the CSV file in which to record the
-            adjusted person-years data.
-        :param output_le_file: The name of the CSV file in which to record the
-            adjusted life expectancy data.
+        :param output_file: The name of the CSV file in which to record the
+            adjusted person-years and adjusted life-expectancy data.
         """
-        self.output_py_file = output_py_file
-        self.output_le_file = output_le_file
+        self.output_file = output_file
 
     def setup(self, builder):
         """
@@ -65,32 +63,29 @@ class AdjustedPersonYears:
         self.population_view = builder.population.get_view(view_cols)
         self.clock = builder.time.clock()
         builder.event.register_listener('collect_metrics', self.on_collect_metrics)
-        builder.event.register_listener('simulation_end', self.write_output)
+        builder.event.register_listener('simulation_end', self.finalise_output)
         self.idx_cols = ['age', 'sex', 'year']
 
-    def create_PYadj_table(self, min_age, min_year):
+    def create_table(self, min_age, min_year):
         """
-        Create an empty data frame to hold all of the adjusted person-year
-        values that will be produced during a simulation.
+        Create an empty data frame to hold all of the adjusted person-year and
+        adjusted life-expectancy values that will be produced during a
+        simulation.
         """
         ages = range(min_age, AGE_GROUP_END + 1)
         sexes = ['male', 'female']
         years = range(min_year, YEAR_END + 1)
         # NOTE: columns must be in the same order as self.idx_cols.
         rows = list(itertools.product(ages, sexes, years))
-        self.data_py = pd.DataFrame(rows, columns=self.idx_cols)
-        self.data_py.set_index(self.idx_cols)
-        self.data_py['PYadj'] = np.nan
-        # Also create a table to record the adjusted life expectancy for each
-        # cohort.
-        le_rows = list(itertools.product(ages, sexes, [min_year]))
-        self.data_le = pd.DataFrame(le_rows, columns=self.idx_cols)
-        self.data_le.set_index(self.idx_cols)
-        self.data_le['LEadj'] = 0.0
+        self.data = pd.DataFrame(rows, columns=self.idx_cols)
+        self.data.set_index(self.idx_cols)
+        self.data['PYadj'] = np.nan
+        self.data['population'] = np.nan
 
     def on_initialize(self, pop_data):
         """
-        Calculate adjusted person-years before the first time-step.
+        Calculate adjusted person-years and adjusted life-expectancy before
+        the first time-step.
         """
         idx = pop_data.index
         # Record the year at which the simulation started.
@@ -103,19 +98,15 @@ class AdjustedPersonYears:
         pop.set_index(self.idx_cols)
         PY = pop['population'] * (1 - 0.5 * prob_death)
         PY_adj = PY * (1 - yld_rate_now)
-        self.create_PYadj_table(pop['age'].min(), self.year_0)
+        self.create_table(pop['age'].min(), self.year_0)
         pop['PYadj'] = PY_adj
-        df = self.data_py.merge(pop, on=self.idx_cols, how='left', suffixes=('', '_new'))
+        df = self.data.merge(pop, on=self.idx_cols, how='left', suffixes=('', '_new'))
         new_vals = df['PYadj_new'].notna()
-        self.data_py.loc[new_vals, 'PYadj'] = df.loc[new_vals, 'PYadj_new']
-        # Calculate the adjusted life expectancy for each cohort.
-        pop['LEadj'] = pop['PYadj'] / pop['population']
-        df = self.data_le.merge(pop.loc[:, self.idx_cols + ['LEadj']],
-                               on=self.idx_cols, how='left',
-                               suffixes=('', '_new'))
-        new_vals = df['LEadj_new'].notna()
-        self.data_le.loc[new_vals, 'LEadj'] = (self.data_le.loc[new_vals, 'LEadj']
-                                               + df.loc[new_vals, 'LEadj_new'])
+        new_popn = df['population_new'].notna()
+        if not new_popn.equals(new_vals):
+            raise ValueError('New population and PYadj values differ')
+        self.data.loc[new_vals, 'PYadj'] = df.loc[new_vals, 'PYadj_new']
+        self.data.loc[new_vals, 'population'] = df.loc[new_vals, 'population_new']
 
     def on_collect_metrics(self, event):
         """
@@ -135,49 +126,64 @@ class AdjustedPersonYears:
         PY = pop['population'] * (1 - 0.5 * prob_death)
         PY_adj = PY * (1 - yld_rate_now)
         pop['PYadj'] = PY_adj
-        df = self.data_py.merge(pop, on=self.idx_cols, how='left', suffixes=('', '_new'))
+        df = self.data.merge(pop, on=self.idx_cols, how='left', suffixes=('', '_new'))
         if len(df.index) > 0:
             new_vals = df['PYadj_new'].notna()
-            self.data_py.loc[new_vals, 'PYadj'] = df.loc[new_vals, 'PYadj_new']
-            # Calculate the adjusted life expectancy for each cohort.
-            pop['LEadj'] = pop['PYadj'] / pop['population']
-            pop['age'] = pop['age'] - pop['year'] + self.year_0
-            pop['year'] = self.year_0
-            df = self.data_le.merge(pop.loc[:, self.idx_cols + ['LEadj']],
-                                    on=self.idx_cols, how='left',
-                                    suffixes=('', '_new'))
-            new_vals = df['LEadj_new'].notna()
-            self.data_le.loc[new_vals, 'LEadj'] = (self.data_le.loc[new_vals, 'LEadj']
-                                                   + df.loc[new_vals, 'LEadj_new'])
+            new_popn = df['population_new'].notna()
+            if not new_popn.equals(new_vals):
+                raise ValueError('New population and PYadj values differ')
+            self.data.loc[new_vals, 'PYadj'] = df.loc[new_vals, 'PYadj_new']
+            self.data.loc[new_vals, 'population'] = df.loc[new_vals, 'population_new']
 
-    def get_adj_py(self):
+    def get_table(self):
         """
-        Return a Pandas data frame that contains the adjusted person-years for
-        each cohort at each year of the simulation.
+        Return a Pandas data frame that contains the adjusted person-years and
+        adjusted life-expectancy for each cohort at each year of the
+        simulation.
         """
-        mask = self.data_py['PYadj'].notna()
-        return self.data_py.loc[mask].sort_index()
+        mask = self.data['PYadj'].notna()
+        return self.data.loc[mask].sort_index()
 
-    def get_adj_le(self):
+    def to_csv(self, filename):
         """
-        Return a Pandas data frame that contains the adjusted life expectancy
-        for each cohort at the starting year of the simulation.
+        Save the adjusted person-years and the adjusted life-expectancy data
+        to a CSV file.
         """
-        return self.data_le
+        self.get_table().to_csv(filename, index=False)
 
-    def adj_py_to_csv(self, filename):
-        """Save the adjusted person-years table to a CSV file."""
-        self.get_adj_py().to_csv(filename, index=False)
-
-    def adj_le_to_csv(self, filename):
-        """Save the adjusted life expectancy table to a CSV file."""
-        self.get_adj_le().to_csv(filename, index=False)
-
-    def write_output(self, event):
+    def finalise_output(self, event):
         """
-        Save the adjusted person-years table at the end of the simulation.
+        Calculate the adjusted life-expectancy for each cohort at each year of
+        the simulation, now that the simulation has finished and the adjusted
+        person-years for each cohort at each year have been calculated.
+
+        If an output file name was provided to the constructor, this method
+        will also save these data to a CSV file.
         """
-        if self.output_py_file is not None:
-            self.adj_py_to_csv(self.output_py_file)
-        if self.output_le_file is not None:
-            self.adj_le_to_csv(self.output_le_file)
+        # Identify each generation by their year of birth.
+        self.data['year_of_birth'] = self.data['year'] - self.data['age']
+        # Sort the table by cohort (i.e., generation and sex), and then by
+        # calendar year, so that results are output in the same order as in
+        # the spreadsheet models.
+        self.data = self.data.sort_values(by=['year_of_birth', 'sex', 'age'],
+                                          axis=0)
+        self.data = self.data.reset_index(drop=True)
+        # Group the adjusted person-years by cohort
+        group_cols = ['year_of_birth', 'sex']
+        subset_cols = group_cols + ['PYadj']
+        grouped = self.data.loc[:, subset_cols].groupby(by=group_cols)['PYadj']
+        # Calculate the reverse-cumulative sums of the adjusted person-years
+        # (i.e., the present and future person-years) by:
+        #   (a) reversing the adjusted person-years values in each cohort;
+        #   (b) calculating the cumulative sums in each cohort; and
+        #   (c) restoring the original order.
+        cumsum = grouped.apply(lambda x: pd.Series(x[::-1].cumsum()).iloc[::-1])
+        # Calculate the adjusted life expectancy for each cohort at each year
+        # by dividing the remaining person-years by the population size.
+        self.data['LEadj'] = cumsum / self.data['population']
+        # Re-order the columns to better reflect how the spreadsheet model
+        # tables are arranged.
+        self.data = self.data[['year_of_birth', 'sex', 'age', 'year',
+                               'population', 'PYadj', 'LEadj']]
+        if self.output_file is not None:
+            self.to_csv(self.output_file)
