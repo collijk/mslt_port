@@ -201,3 +201,32 @@ def get_disability(disease):
     df = get_disease_data(disease)
     return df[['year', 'age', 'sex', 'disability_rate']]
 
+
+def get_acute_disease_data(disease):
+    data_path = str(Path('../data/inputs_{}.csv'.format(disease)).resolve())
+    df = pd.read_csv(data_path)
+
+    key_columns = ['age', 'sex', 'year', 'excess_mortality', 'disability_rate']
+    cols = [c for c in df.columns if c in key_columns]
+    df = df[cols].fillna(0)
+
+    if 'year' in cols:
+        data = df
+    else:
+        data = []
+        for year in range(YEAR_START, YEAR_END + 1):
+            df['year'] = year
+            data.append(df.copy())
+        data = pd.concat(data)
+
+    return data.sort_values(['year', 'age', 'sex']).reset_index()
+
+
+def get_acute_excess_mortality(disease):
+    df = get_acute_disease_data(disease)
+    return df[['year', 'age', 'sex', 'excess_mortality']]
+
+
+def get_acute_disability(disease):
+    df = get_acute_disease_data(disease)
+    return df[['year', 'age', 'sex', 'disability_rate']]

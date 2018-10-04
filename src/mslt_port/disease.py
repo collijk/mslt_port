@@ -2,7 +2,53 @@ import numpy as np
 import pandas as pd
 
 from mslt_port.data import (get_incidence, get_remission, get_excess_mortality,
-                            get_prevalence, get_disability, AGE_GROUP_END)
+                            get_prevalence, get_disability, AGE_GROUP_END,
+                            get_acute_excess_mortality, get_acute_disability)
+
+
+class AcuteDisease:
+    """
+    An acute disease has a sufficiently short duration, relative to the
+    time-step size, that it is not meaningful to talk about prevalence.
+    Instead, it simply contributes an excess mortality rate, and/or a
+    disability rate.
+
+    Interventions may affect these rates:
+
+    - `<disease>_intervention.excess_mortality`
+    - `<disease>_intervention.yld_rate`
+
+    where `<disease>` is the name given to an acute disease object.
+    """
+
+    def __init__(self, name):
+        self.name = name
+
+    def setup(self, builder):
+        mty_rate = builder.lookup.build_table(get_acute_excess_mortality(self.name))
+        yld_rate = builder.lookup.build_table(get_acute_disability(self.name))
+        self.excess_mortality = builder.value.register_rate_producer(
+            f'{self.name}.excess_mortality',
+            source=mty_rate)
+        self.int_excess_mortality = builder.value.register_rate_producer(
+            f'{self.name}_intervention.excess_mortality',
+            source=mty_rate)
+        self.disability_rate = builder.value.register_rate_producer(
+            f'{self.name}.yld_rate',
+            source=yld_rate)
+        self.int_disability_rate = builder.value.register_rate_producer(
+            f'{self.name}_intervention.yld_rate',
+            source=yld_rate)
+        builder.value.register_value_modifier('mortality_rate', self.mortality_adjustment)
+        builder.value.register_value_modifier('yld_rate', self.disability_adjustment)
+
+    def mortality_adjustment(self, index, mortality_rate):
+        delta = self.int_excess_mortality(index) - self.excess_mortality(index)
+        return mortality_rate + delta
+
+    def disability_adjustment(self, index, yld_rate):
+        delta = self.int_disability_rate(index) - self.disability_rate(index)
+        return yld_rate + delta
 
 
 class Disease:

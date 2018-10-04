@@ -1,0 +1,41 @@
+# Run this simulation with the following command:
+#
+#     simulate run test_adjPY.yaml
+#
+# This command must be run from the directory containing this configuration
+# file, so that the input data files can be located correctly.
+
+# Note that this section reflects how the Python modules are organised.
+# For example, the Disease class is defined in the mslt_port.disease module,
+# while the AdjustedPersonYears class is defined in mslt_port.observer.
+components:
+    mslt_port:
+        population:
+            - BasePopulation()
+            - Mortality()
+            - Disability()
+        disease:
+            - Disease('chd')
+            - AcuteDisease('lrti')
+        observer:
+            - AdjustedPYandLE('lrti-adjusted-py-le.csv')
+        test_components:
+            - ModifyAcuteDiseaseMortality('lrti')
+            - ModifyAcuteDiseaseYLD('lrti')
+
+# These settings are taken from mslt_port.data.get_default_config().
+configuration:
+    population:
+        population_size: 220 # Males and females, aged 0 to 109.
+    time:
+        start:
+            year: 2011
+        end:
+            year: 2120
+        step_size: 365  # In days
+    intervention:
+        lrti:
+            # Set to (positive) values less than 1 to reduce LRTI impact.
+            # Alternatively, set to values greater than 1 to increase impact.
+            mortality_scale: 1.0
+            yld_scale: 1.0
