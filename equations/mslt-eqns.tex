@@ -49,10 +49,10 @@ values.
   \PY(a, t_0) &= \Pop(a, t_0) \times \left(1 - \frac{\PD(a,t_0)}{2}\right) \\
   \PY(a+n, t_0+n) &= \Pop(a, t_0) \prod_{k=0}^{n-1} \left[ 1 - \PD(a+k, t_0+k) \right]
   \times \left(1 - \frac{\PD(a+k+1, t_0+k+1}{2}\right) \\
-  \LE(a, t) &= \sum_{k=0}^{a_{\max}-a} \frac{\PY(a+k,t+k)}{\Pop(a+k, t+k)} \\
+  \LE(a, t) &= \frac{\sum_{k=0}^{a_{\max}-a} \PY(a+k,t+k)}{\Pop(a, t)} \\
   \YLDrate &: a \mapsto \YLDrate \\
   \PY_{adj}(a, t) &= \PY(a, t) \times \left[1 - \YLDrate(a)\right] \\
-  \LE_{adj}(a, t) &= \sum_{k=0}^{a_{\max}-a} \frac{\PY_{adj}(a+k, t+k)}{\Pop(a+k, t+k)}
+  \LE_{adj}(a, t) &= \frac{\sum_{k=0}^{a_{\max}-a} \PY_{adj}(a+k, t+k)}{\Pop(a, t)}
 \end{align*}
 
 \begin{table}
