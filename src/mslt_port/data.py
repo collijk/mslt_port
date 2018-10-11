@@ -9,8 +9,11 @@ YEAR_START = 2011
 AGE_GROUP_END = 109
 YEAR_END = YEAR_START + AGE_GROUP_END
 
-life_table_data_path = str(Path('../data/inputs_take2.csv').resolve())
-disease_data_path = str(Path('../data/inputs_selected_diseases.csv').resolve())
+# Path to the data directory, relative to the repository root.
+DATA_DIR = './data'
+
+life_table_data_path = str(Path(f'{DATA_DIR}/inputs_take2.csv').resolve())
+disease_data_path = str(Path(f'{DATA_DIR}/inputs_selected_diseases.csv').resolve())
 
 
 def get_default_config():
@@ -203,7 +206,7 @@ def get_disability(disease):
 
 
 def get_acute_disease_data(disease):
-    data_path = str(Path('../data/inputs_{}.csv'.format(disease)).resolve())
+    data_path = str(Path('{}/inputs_{}.csv'.format(DATA_DIR, disease)).resolve())
     df = pd.read_csv(data_path)
 
     key_columns = ['age', 'sex', 'year', 'excess_mortality', 'disability_rate']
