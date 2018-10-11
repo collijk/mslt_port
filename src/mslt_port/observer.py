@@ -35,9 +35,7 @@ class DiseaseObserver:
 class AdjustedPYandLE:
     """
     This class calculates the adjusted person-years and the adjusted
-    life-expectancy for each cohort at each year of the simulation. The
-    results can be obtained by calling the get_table() method, or saved to a
-    CSV file by calling the to_csv() method.
+    life-expectancy for each cohort at each year of the simulation.
     """
 
     def __init__(self, output_file=None):
