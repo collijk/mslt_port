@@ -1,4 +1,4 @@
-sex,age,mortality_rate_per1,pop_no,pYLD_rate,chd_i,chd_r,chd_f,chd_prev,chd_DR,stroke_i,stroke_r,stroke_f,stroke_prev,stroke_DR,luncC_i,lungC_r,lungC_f,lungC_prev,lungC_DR,colorectC_i,colorectC_r,colorectC_f,colorectC_prev,colorectC_DR
+sex,age,mortality_rate_per1,pop_no,pYLD_rate,chd_i,chd_r,chd_f,chd_prev,chd_DR,stroke_i,stroke_r,stroke_f,stroke_prev,stroke_DR,lungC_i,lungC_r,lungC_f,lungC_prev,lungC_DR,colorectC_i,colorectC_r,colorectC_f,colorectC_prev,colorectC_DR
 male,0,0.00438962,,0.02065691,0,,0,0,0.079310861,0,,0,0,0.37304024,0,0,0,0,0.361730689,0,0,0,0,0.28020884
 male,1,0.000340058,,0.026387239,0,,0,0,0.079310861,0,,0,0,0.37304024,0,0,0,0,0.361730689,0,0,0,0,0.28020884
 male,2,0.00020002,114970,0.026387239,0,,0,0,0.079310861,0,,0.001514625,0,0.37304024,0,0,0,0,0.361730689,0,0,0,0,0.28020884
