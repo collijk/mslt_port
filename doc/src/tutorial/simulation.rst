@@ -78,6 +78,17 @@ This will generally comprise:
 2. An all-cause mortality rate (ACMR); and
 3. A years lost due to disability (YLD) rate.
 
+These data are currently loaded using three separate components:
+
+.. code-block:: yaml
+
+   components:
+       mslt_port:
+           population:
+               - BasePopulation()
+               - Mortality()
+               - Disability()
+
 .. _chronic_comp:
 
 Chronic diseases
@@ -93,6 +104,20 @@ Chronic diseases are characterised in terms of:
 
 .. note:: These rates must be specified for each cohort (i.e., age and sex).
 
+Any number of chronic diseases can be included in a simulation.
+Each disease must be given a unique name, which should correspond to the name
+used to identify the disease in the input data file.
+
+.. code-block:: yaml
+
+   components:
+       mslt_port:
+           disease:
+               - Disease('chd')
+               - Disease('stroke')
+               - Disease('lungC')
+               - Disease('colorectC')
+
 .. _acute_comp:
 
 Acute diseases and events
@@ -107,6 +132,17 @@ Acute diseases (such as lower respiratory tract infections) and acute events
 .. note:: These rates must be specified for each cohort (i.e., age and sex),
    and can also be specified separately for each year of the simulation.
 
+Any number of acute diseases/events can be included in a simulation.
+Each disease must be given a unique name, which should correspond to the name
+used to identify the disease in the input data file.
+
+.. code-block:: yaml
+
+   components:
+       mslt_port:
+           disease:
+               - AcuteDisease('lrti')
+
 .. _interv_comp:
 
 Interventions
@@ -115,6 +151,9 @@ Interventions
 Interventions are characterised as one or more Population Impact Fractions
 (PIFs), each of which modifies an existing rate (e.g., the incidence rate of a
 specific chronic disease).
+
+.. note:: Interventions are a work in progress, we are still deciding exactly
+   what form they will take.
 
 .. _obs_comp:
 
@@ -126,6 +165,16 @@ The MSLT_ framework currently provides one observer,
 :class:`~mslt_port.observer.AdjustedPYandLE`.
 
 .. autoclass:: mslt_port.observer.AdjustedPYandLE
+
+Any number of observers can be included in a simulation.
+Each observer should write to a different output file.
+
+.. code-block:: yaml
+
+   components:
+       mslt_port:
+           observer:
+               - AdjustedPYandLE('adjusted-py-le.csv')
 
 At the end of a simulation, it will write these data to the specified output
 file:
