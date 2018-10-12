@@ -51,6 +51,7 @@ Quick start
 
    tutorial/installation
    tutorial/simulation
+   tutorial/inputs
 
 Indices and tables
 ==================
