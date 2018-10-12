@@ -29,6 +29,7 @@ if on_rtd:
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.doctest',
+    'sphinx.ext.graphviz',
     'sphinx.ext.mathjax',
 ]
 
@@ -84,6 +85,11 @@ todo_include_todos = False
 # Show both the class docstring and the __init__ method's docstring.
 autoclass_content = 'both'
 
+# Save GraphViz figures as SVG files (the default setting is 'png').
+# Note that for URL links to work, the 'target' attribute must be set.
+# See http://www.sphinx-doc.org/en/master/usage/extensions/graphviz.html for
+# an example.
+graphviz_output_format = 'svg'
 
 # -- Options for HTML output ----------------------------------------------
 

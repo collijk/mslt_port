@@ -7,6 +7,63 @@ A simulation is defined in terms of the **components** that are included in
 the model, and the **configuration settings** that define key model
 parameters.
 
+Overview
+--------
+
+.. graphviz::
+   :caption: The structure of an MSLT_ simulation, where each box identifies a
+       component in the MSLT_ framework.
+       The Life Table component (dashed box) is automatically included in
+       every simulation, and its contents are defined by the other simulation
+       components.
+       User-provided inputs are shown in blue, simulation outputs are shown in
+       green.
+
+   digraph mslt_structure {
+     graph [bgcolor="transparent", fontsize=8, scale=0.5];
+     input [label="All-cause Mortality Rate\nDisability Rate\nDemographics",
+            color="#1f78b4", margin="0.11"];
+     popn [label="Population",
+           href="../tutorial/simulation.html#population", target="_top",
+           shape=box, margin="0.22,0.011"];
+     mslt [label="Life Table",
+           style="dashed",
+           shape=box, margin="0.22,0.011"];
+     obs [label="Observer",
+          href="../tutorial/simulation.html#observers", target="_top",
+          shape=box, margin="0.22,0.011"];
+     output [label="Adjusted life-years\nAdjusted life-expectancy",
+             color="#33a02c", margin="0.11"];
+     input -> popn [color="#1f78b4"];
+     popn -> mslt -> obs;
+     obs -> output [color="#33a02c"];
+     delta [label="ΔACMR\nΔYLDR", color="transparent"];
+     chronic [label="Chronic Disease",
+              href="../tutorial/simulation.html#chronic-diseases",
+              target="_top",
+              shape=box, margin="0.22,0.011"];
+     chronic_input [
+       label="Incidence\nRemission\nPrevalence\nMortality\nDisability",
+       color="#1f78b4", margin="0.11"];
+     chronic_input -> chronic [color="#1f78b4"];
+     chronic -> delta -> mslt;
+     acute [label="Acute Disease",
+            href="../tutorial/simulation.html#acute-diseases-and-events",
+            target="_top",
+            shape=box, margin="0.22,0.011"];
+     acute_input [label="Mortality\nDisability",
+                  color="#1f78b4", margin="0.11"];
+     acute_input -> acute [color="#1f78b4"];
+     acute -> delta;
+     pif [label="PIF", color="#1f78b4", margin="0.11"];
+     intervention [label="Intervention",
+                   href="../tutorial/simulation.html#interventions",
+                   target="_top",
+                   shape=box, margin="0.22,0.011"];
+     pif -> intervention [color="#1f78b4"];
+     intervention -> chronic;
+   }
+
 Components
 ----------
 
@@ -17,7 +74,7 @@ Population
 
 This will generally comprise:
 
-1. The baseline population demographics;
+1. The baseline population demographics (age, sex, cohort size);
 2. An all-cause mortality rate (ACMR); and
 3. A years lost due to disability (YLD) rate.
 
