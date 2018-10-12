@@ -1,5 +1,4 @@
-sex,age,"mortality per 1
-rate",pop_avg_5yr,pYLD_rate
+sex,age,rate,pop_avg_5yr,pYLD_rate
 male,0,0.0043896,,0.02065691
 male,1,0.0003401,,0.026387239
 male,2,0.0002000,114970,0.026387239
