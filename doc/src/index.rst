@@ -53,6 +53,12 @@ Quick start
    tutorial/simulation
    tutorial/inputs
 
+.. toctree::
+   :maxdepth: 2
+   :caption: Reference
+
+   reference/equations
+
 Indices and tables
 ==================
 
