@@ -2,6 +2,7 @@
 
 .. math::
 
+   \DeclareMathOperator{\d}{d\!}
    \DeclareMathOperator{\APC}{APC}
    \DeclareMathOperator{\ACMR}{ACMR}
    \DeclareMathOperator{\PD}{PD}
@@ -17,8 +18,11 @@
    \DeclareMathOperator{\Prev}{Prev}
 
 
-MSLT Equations
+MSLT equations
 ==============
+
+Life table
+----------
 
 The inputs are the all-cause mortality rate, :math:`ACMR(a, t_0)`, and the
 annual percent change in ACMR, :math:`APC(a, t)`.
@@ -64,3 +68,104 @@ their intervention-specific values.
    :math:`\PY_{adj}`  Person-years, adjusted for YLD
    :math:`\LE_{adj}`  Life expectancy, relative to current age and adjusted for YLD
    =================  =============================================================
+
+Chronic disease
+---------------
+
+The equations for chronic disease prevalence, remission, and mortality come
+from `Barendregt et al., 2003 <https://doi.org/10.1186/1478-7954-1-4>`_.
+A key assumption in their derivation is the independence of mortality from all
+causes:
+
+   If it is assumed that mortality from all other causes is independent of the
+   disease, i.e., that it is the same for healthy and diseased people, this
+   implies that the transition hazards for incidence, remission and case
+   fatality are not affected by the value of the 'all other causes' mortality.
+   Therefore we can set the value of mortality from all other causes to 0
+   (i.e., leave it out of the equations) and still derive the right values for
+   the disease rates.
+
+.. graphviz::
+   :align: center
+   :caption: The conceptual disease model.
+       :math:`S`: number of healthy people (i.e., without the disease under
+       consideration); :math:`C`: number of diseased people; :math:`D`: number
+       of people dead from the disease; and :math:`M`: number of people dead
+       from all other causes.
+       There are four transition hazards: :math:`i`: incidence, :math:`r`:
+       remission, :math:`f`: case fatality, and :math:`m`: all other
+       mortality.
+
+    digraph dis_mod {
+      {rank=same; Sa Ma }
+      {rank=same; Ca Da }
+      Sa [label="S", shape=box];
+      Ca [label="C", shape=box];
+      Ma [label="M", shape=box];
+      Da [label="D", shape=box];
+      Sa -> Ca [label="i"];
+      Ca -> Sa [label="r"];
+      Sa -> Ma [label="m"];
+      Ca -> Ma [label="m"];
+      Ca -> Da [label="f"];
+    }
+
+With this simplifying assumption, the system of equations becomes:
+
+.. math::
+
+   \begin{align}
+     \frac{\d{}S_a}{\d{}a} &= -i_a S_a + r_a C_a \\
+     \frac{\d{}C_a}{\d{}a} &= -(f_a + r_a) C_a + i_a S_a \\
+     \frac{\d{}D_a}{\d{}a} &= f_a C_a
+   \end{align}
+
+The eigenvalues :math:`\lambda` can then be calculated:
+
+.. math::
+
+   \begin{align}
+     M &= \begin{pmatrix}
+       -i & r & 0 \\
+       i & -f - r & 0 \\
+       0 & f & 0 \\
+     \end{pmatrix} \\
+     \det(M - \lambda I) &= - \lambda \cdot \left[
+       \lambda^2 + \lambda \cdot (i + f + r) + if \right ] \\
+     \lambda \ne 0 \implies \lambda &=
+       \frac{- i - f - r \pm \sqrt{(i + f + r)^2 - 4if}}{2}
+   \end{align}
+
+.. note:: This is equivalent to the derivation in
+   `Barendregt et al., 2003 <https://doi.org/10.1186/1478-7954-1-4>`_.
+
+The resulting difference equations for :math:`S_a`, :math:`C_a`, and
+:math:`D_a` are then:
+
+.. math::
+
+   \begin{align}
+   S_a &= \frac{%
+     2 (v_a − w_a) \left[ S_{a−1} (f_a + r_a) + C_{a−1} r_a \right]
+     + S_{a−1} \left[ v_a (q_a − l_a) + w_a (q_a + l_a) \right]
+     }{2q_a} \\
+   C_a &= \frac{%
+     (v_a - w_a) \left( 2\left[ (f_a + r_a)(S_{a-1} + C_{a-1}) - l_a S_{a-1}
+       \right] - C_{a-1} l_a \right) - C_{a_1} q_a (v_a + w_a)
+     }{2q_a} \\
+   D_a &= \frac{%
+     (v_a - w_a) \left[ 2 f_a C_{a-1} - l_a(S_{a-1} + C_{a-1}) \right]
+     - q_a (S_{a-1} + C_{a-1})(v_a + w_a) + 2q_a (S_{a-1} + C_{a-1} + D_{a-1})
+     }{2q_a}
+   \end{align}
+
+where we define the following convenience variables:
+
+.. math::
+
+   \begin{align}
+   l_a &= i_a + r_a + f_a \\
+   q_a &= \sqrt{(i + f + r)^2 - 4if} \\
+   w_a &= \exp\left( \frac{-l_a + q_a}{2} \right) \\
+   v_a &= \exp\left( \frac{-l_a - q_a}{2} \right)
+   \end{align}
