@@ -34,8 +34,21 @@ This should display the version of Vivarium_ that you have installed.
 MSLT framework
 --------------
 
-You can then install the MSLT_ framework by making a local copy of the
-repository, opening a command prompt, and running:
+To install the MSLT_ framework you need a local copy of the repository.
+There are two ways to do this:
+
+1. If you do not have ``git`` installed, download
+   `this ZIP file <https://github.com/collijk/mslt_port/archive/master.zip>`_
+   and extract its contents.
+
+2. If you do have ``git`` installed, clone the MSLT_ repository:
+
+   .. code-block:: shell
+
+      git clone https://github.com/collijk/mslt_port
+
+You can then install the MSLT_ framework by opening a command prompt and
+running:
 
 .. code-block:: shell
 
