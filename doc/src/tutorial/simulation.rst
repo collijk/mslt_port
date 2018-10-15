@@ -10,6 +10,29 @@ parameters.
 Overview
 --------
 
+The components and configuration settings are collected into a single text
+file, as shown in the example file below.
+
+.. literalinclude:: ../../../test_adjPY.yaml
+   :caption: An example simulation file.
+   :language: yaml
+   :lines: 11-21,23-
+   :linenos:
+
+In order to define your own simulation, you will need to provide data to
+characterise:
+
+- The :ref:`target population <popn_comp>` (lines 4--6 in the above example).
+- Each :ref:`chronic disease <chronic_comp>` that you want to include (line 8
+  in the above example).
+- Any :ref:`acute diseases or events <acute_comp>` that you want to include
+  (not shown in the above example).
+- The :ref:`intervention(s) <interv_comp>` that will act on one or more
+  disease rates (not shown in the above example).
+
+You can then use the provided MSLT_ components (shown in the figure below) to
+incorporate these features into a simulation.
+
 .. graphviz::
    :caption: The structure of an MSLT_ simulation, where each box identifies a
        component in the MSLT_ framework.
