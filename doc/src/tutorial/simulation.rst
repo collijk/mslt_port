@@ -121,7 +121,7 @@ Chronic diseases are characterised in terms of:
 
 - Incidence rate;
 - Remission rate;
-- Excess mortality rate;
+- Case fatality rate;
 - Initial prevalence; and
 - Disability rate.
 

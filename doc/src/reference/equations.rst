@@ -53,7 +53,7 @@ their intervention-specific values.
      \LE_{adj}(a, t) &= \frac{\sum_{k=0}^{a_{\max}-a} \PY_{adj}(a+k, t+k)}{\Pop(a, t)}
    \end{align}
 
-.. table:: Definition of symbols used in equations.
+.. table:: Definition of symbols used in the life table equations.
 
    =================  =============================================================
    Symbol             Definition
@@ -94,7 +94,7 @@ causes:
        from all other causes.
        There are four transition hazards: :math:`i`: incidence, :math:`r`:
        remission, :math:`f`: case fatality, and :math:`m`: all other
-       mortality.
+       mortality (set to zero).
 
     digraph dis_mod {
       {rank=same; Sa Ma }
@@ -169,3 +169,16 @@ where we define the following convenience variables:
    w_a &= \exp\left( \frac{-l_a + q_a}{2} \right) \\
    v_a &= \exp\left( \frac{-l_a - q_a}{2} \right)
    \end{align}
+
+.. table:: Definition of symbols used in the chronic disease equations.
+
+   ===========  ============================================================
+   Symbol       Definition
+   ===========  ============================================================
+   :math:`i`    Disease incidence rate
+   :math:`r`    Disease remission rate
+   :math:`f`    Case fatality rate
+   :math:`S_a`  Number of health people at age :math:`a`.
+   :math:`C_a`  Number of diseased people at age :math:`a`.
+   :math:`D_a`  Number of dead people at age :math:`a` (due to the disease).
+   ===========  ============================================================
