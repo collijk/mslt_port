@@ -33,6 +33,18 @@ characterise:
 You can then use the provided MSLT_ components (shown in the figure below) to
 incorporate these features into a simulation.
 
+.. note:: You may also want to adjust the :ref:`number of cohorts <popn_conf>`
+   or the :ref:`simulation timescale <time_conf>`.
+
+To run a simulation (e.g., as defined in the file ``simulation_1.yaml``), open
+a terminal (Linux and OS X) or command prompt (Windows) and run the following
+command:
+
+.. code-block:: shell
+
+   simulate run simulation_1.yaml
+
+
 .. graphviz::
    :caption: The structure of an MSLT_ simulation, where each box identifies a
        component in the MSLT_ framework.
