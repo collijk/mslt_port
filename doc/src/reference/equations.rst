@@ -149,9 +149,9 @@ The resulting difference equations for :math:`S_a`, :math:`C_a`, and
      2 (v_a − w_a) \left[ S_{a−1} (f_a + r_a) + C_{a−1} r_a \right]
      + S_{a−1} \left[ v_a (q_a − l_a) + w_a (q_a + l_a) \right]
      }{2q_a} \\
-   C_a &= \frac{%
+   C_a &= - \frac{%
      (v_a - w_a) \left( 2\left[ (f_a + r_a)(S_{a-1} + C_{a-1}) - l_a S_{a-1}
-       \right] - C_{a-1} l_a \right) - C_{a_1} q_a (v_a + w_a)
+       \right] - C_{a-1} l_a \right) - C_{a-1} q_a (v_a + w_a)
      }{2q_a} \\
    D_a &= \frac{%
      (v_a - w_a) \left[ 2 f_a C_{a-1} - l_a(S_{a-1} + C_{a-1}) \right]
