@@ -1,0 +1,31 @@
+components:
+    mslt_port:
+        population:
+            - BasePopulation()
+            - Mortality()
+            - Disability()
+        disease:
+            - Disease('chd')
+            # - Disease('stroke')
+            # - Disease('lungC')
+            # - Disease('colorectC')
+            # - AcuteDisease('lrti')
+            # - AcuteDisease('rta_injury')
+        intervention:
+            - ModifyDiseaseIncidence('reduce_chd', 'chd')
+        observer:
+            - AdjustedPYandLE('test_dis_interv.csv')
+
+# These settings are taken from mslt_port.data.get_default_config().
+configuration:
+    population:
+        population_size: 220 # Males and females, aged 0 to 109.
+    time:
+        start:
+            year: 2011
+        end:
+            year: 2120
+        step_size: 365  # In days
+    intervention:
+        reduce_chd:
+            chd_incidence_scale: 0.95

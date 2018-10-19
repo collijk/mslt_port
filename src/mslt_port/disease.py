@@ -81,9 +81,11 @@ class Disease:
         builder.population.initializes_simulants(self.on_initialize_simulants,
                                                  creates_columns=columns,
                                                  requires_columns=['age', 'sex'])
-        self.population_view = builder.population.get_view(columns)
+        self.population_view = builder.population.get_view(columns + ['age', 'sex', 'population'])
 
         builder.event.register_listener('time_step__prepare', self.on_time_step_prepare)
+        self.clock = builder.time.clock()
+        builder.event.register_listener('collect_metrics', self.after_step)
 
     def on_initialize_simulants(self, pop_data):
         C = 1000 * self.initial_prevalence(pop_data.index)
@@ -100,6 +102,9 @@ class Disease:
                            index=pop_data.index)
 
         self.population_view.update(pop)
+        print('\nFollowing males aged 2 in 2010 ...\n')
+        print('{:>3}       {:>15}  {:>15}  {:>15}  {:>9}'.format(
+            'age', 'Healthy', 'Diseased', 'Dead', 'Mort Risk'))
 
     def on_time_step_prepare(self, event):
         idx = event.index
@@ -134,6 +139,56 @@ class Disease:
                                    f'{self.name}_C_intervention_previous': C_int},
                                   index=pop.index)
         self.population_view.update(pop_update)
+        # The index for males aged 2 years in 2010.
+        cix = 5
+        if pop.shape[0] <= cix:
+            return
+        age = self.clock().year - 2008 - 1
+        mortality_risk = ((- new_S[cix] - new_C[cix] + S[cix] + C[cix])
+                          / (S[cix] + C[cix]))
+        mortality_risk_int = (- new_S_intervention[cix] - new_C_intervention[cix]
+                              + S_int[cix] + C_int[cix]) / (S_int[cix] + C_int[cix])
+        print('{:3d}  BAU  {: 15.9f}  {: 15.9f}  {: 15.9f}  {:0.4e}'.format(
+            age,
+            new_S[cix], new_C[cix], 1000 - new_S[cix] - new_C[cix],
+            mortality_risk))
+        print('     INT  {: 15.9f}  {: 15.9f}  {: 15.9f}  {:0.4e}'.format(
+            new_S_intervention[cix], new_C_intervention[cix],
+            1000 - new_S_intervention[cix] - new_C_intervention[cix],
+            mortality_risk_int))
+        # NOTE: See 'CHD' worksheet, column AG: delta mortality
+        #       =(-LN(1-AD22))-(-LN(1-R22))
+        #       AD22 is the intervention mortality risk
+        #       R22 is the BAU mortality risk
+
+    def after_step(self, event):
+        idx = event.index
+        pop = self.population_view.get(idx)
+        age = self.clock().year - 2008
+        # The index for males aged 2 years in 2010.
+        cix = 5
+        if pop.shape[0] <= cix:
+            return
+        prev_S = pop.loc[cix, f'{self.name}_S_previous']
+        prev_C = pop.loc[cix, f'{self.name}_C_previous']
+        prev_S_int = pop.loc[cix, f'{self.name}_S_intervention_previous']
+        prev_C_int = pop.loc[cix, f'{self.name}_C_intervention_previous']
+        new_S = pop.loc[cix, f'{self.name}_S']
+        new_C = pop.loc[cix, f'{self.name}_C']
+        new_S_int = pop.loc[cix, f'{self.name}_S_intervention']
+        new_C_int = pop.loc[cix, f'{self.name}_C_intervention']
+        mortality_risk = ((- new_S - new_C + prev_S + prev_C)
+                          / (prev_S + prev_C))
+        mortality_risk_int = ((- new_S_int - new_C_int + prev_S_int
+                               + prev_C_int)
+                              / (prev_S_int + prev_C_int))
+        print('{:3d}  BAU  {: 15.9f}  {: 15.9f}  {: 15.9f}  {:0.4e}'.format(
+            age,
+            new_S, new_C, 1000 - new_S - new_C,
+            mortality_risk))
+        print('     INT  {: 15.9f}  {: 15.9f}  {: 15.9f}  {:0.4e}'.format(
+            new_S_int, new_C_int, 1000 - new_S_int - new_C_int,
+            mortality_risk_int))
 
     def mortality_adjustment(self, index, mortality_rate):
         pop = self.population_view.get(index)
@@ -151,6 +206,14 @@ class Disease:
 
         cause_mortality_rate = -np.log(1 - mortality_risk)
         cause_mortality_rate_int = -np.log(1 - mortality_risk_int)
+
+        delta = cause_mortality_rate_int - cause_mortality_rate
+        # The index for males aged 2 years in 2010.
+        cix = 5
+        if pop.shape[0] > cix:
+            bau = mortality_rate[cix] + cause_mortality_rate[cix]
+            print('    ACMR  {:15.9f} +{:15.9f} ={:15.9f}'.format(
+                bau, delta[cix], bau + delta[cix]))
 
         return mortality_rate + (cause_mortality_rate_int - cause_mortality_rate)
 
@@ -221,10 +284,15 @@ class Disease:
     def update_S(S, C, i, r, f, l, q, w, v):
         new_S = (2*(v - w)*(S*(f + r) + C*r) + S*(v*(q - l) + w*(q + l))) / (2 * q)
         new_S[q == 0] = S[q == 0]
+        # NOTE: try using simpler no-remission equations.
+        new_S = S * np.exp(-i)
         return new_S
 
     @staticmethod
     def update_C(S, C, i, r, f, l, q, w, v):
         new_C = -((v - w)*(2*((f + r)*(S + C) - l*S) - l*C) - (v + w)*q*C) / (2 * q)
         new_C[q == 0] = C[q == 0]
+        # NOTE: try using simpler no-remission equations.
+        # new_C = S * (- np.expm1(-i)) + C * np.exp(-f)
+        new_C = S * (1 - np.exp(-i)) + C * np.exp(-f)
         return new_C
