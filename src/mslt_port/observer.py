@@ -78,6 +78,7 @@ class AdjustedPYandLE:
         self.data = pd.DataFrame(rows, columns=self.idx_cols)
         self.data.set_index(self.idx_cols)
         self.data['PYadj'] = np.nan
+        self.data['PY'] = np.nan
         self.data['population'] = np.nan
 
     def on_initialize(self, pop_data):
@@ -97,12 +98,14 @@ class AdjustedPYandLE:
         PY = pop['population'] * (1 - 0.5 * prob_death)
         PY_adj = PY * (1 - yld_rate_now)
         self.create_table(pop['age'].min(), self.year_0)
+        pop['PY'] = PY
         pop['PYadj'] = PY_adj
         df = self.data.merge(pop, on=self.idx_cols, how='left', suffixes=('', '_new'))
         new_vals = df['PYadj_new'].notna()
         new_popn = df['population_new'].notna()
         if not new_popn.equals(new_vals):
             raise ValueError('New population and PYadj values differ')
+        self.data.loc[new_vals, 'PY'] = df.loc[new_vals, 'PY_new']
         self.data.loc[new_vals, 'PYadj'] = df.loc[new_vals, 'PYadj_new']
         self.data.loc[new_vals, 'population'] = df.loc[new_vals, 'population_new']
 
@@ -123,6 +126,7 @@ class AdjustedPYandLE:
         # NOTE: PY(a,t_0) equation actually applies to ANY t.
         PY = pop['population'] * (1 - 0.5 * prob_death)
         PY_adj = PY * (1 - yld_rate_now)
+        pop['PY'] = PY
         pop['PYadj'] = PY_adj
         df = self.data.merge(pop, on=self.idx_cols, how='left', suffixes=('', '_new'))
         if len(df.index) > 0:
@@ -130,6 +134,7 @@ class AdjustedPYandLE:
             new_popn = df['population_new'].notna()
             if not new_popn.equals(new_vals):
                 raise ValueError('New population and PYadj values differ')
+            self.data.loc[new_vals, 'PY'] = df.loc[new_vals, 'PY_new']
             self.data.loc[new_vals, 'PYadj'] = df.loc[new_vals, 'PYadj_new']
             self.data.loc[new_vals, 'population'] = df.loc[new_vals, 'population_new']
 
@@ -179,9 +184,15 @@ class AdjustedPYandLE:
         # Calculate the adjusted life expectancy for each cohort at each year
         # by dividing the remaining person-years by the population size.
         self.data['LEadj'] = cumsum / self.data['population']
+        # Calculate the un-adjusted person-years, using the same approach as
+        # above but instead applying it to the 'PY' column.
+        subset_cols = group_cols + ['PY']
+        grouped = self.data.loc[:, subset_cols].groupby(by=group_cols)['PY']
+        cumsum = grouped.apply(lambda x: pd.Series(x[::-1].cumsum()).iloc[::-1])
+        self.data['LE'] = cumsum / self.data['population']
         # Re-order the columns to better reflect how the spreadsheet model
         # tables are arranged.
         self.data = self.data[['year_of_birth', 'sex', 'age', 'year',
-                               'population', 'PYadj', 'LEadj']]
+                               'population', 'PY', 'LE', 'PYadj', 'LEadj']]
         if self.output_file is not None:
             self.to_csv(self.output_file)

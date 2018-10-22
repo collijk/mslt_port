@@ -93,3 +93,53 @@ model:
 
 In the spreadsheet, the mortality risks 1.4306e-06 and 1.3591e-06 are obtained
 when this cohort is aged 19, not when aged 20.
+
+Double-checking the main life-table
+-----------------------------------
+
+The **un-adjusted** life-years and life expectancy are correct to several
+significant digits.
+
+But note that **a change in disease prevalence** also produces **a change in
+the disability rate**.
+
+1. In the `LifeTable` worksheet, the intervention disability adjustment
+   (:math:`w'_x`) is defined in column `R` as the BAU YLD rate (column `I`)
+   plus disease-specific adjustments.
+
+2. The CHD adjustment is defined in column `AH` of the `CHD` worksheet as the
+   change in disease prevalence (relative to BAU) multiplied by the disability
+   rate for CHD.
+
+3. This disability rate (:math:`DR`) is defined in column `M` of the
+   `NM_InputData` worksheet as:
+
+   `=_xlfn.BE(0.5, N242, O242)`
+
+   The `N` and `O` columns (**from row 242 on**) appear to define shape
+   parameters for a beta distribution.
+
+   I can't get this to evaluate on my wife's laptop (Office 2008 for Mac), but
+   it would appear that the `DR` is likely to be 1.0, so the change in the YLD
+   rate is simply the change in CHD prevalence; this would therefore
+   **decrease** the YLD rate.
+
+Since I can't evaluate the `_xlfn.BE` function, I'm unable to inspect the
+adjusted person-years and life expectancy columns of the life table in the
+spreadsheet model, which makes it difficult to trace this problem any further.
+I will arrange access to a Windows PC/VM sometime this week.
+
+Also note that the pYLD rate in `./data/inputs_take2.csv` differ slightly from
+those values in column `ED` of the `NM_InputData` worksheet.
+
+For example:
+
+====  ===  ==================  ===========
+Sex   Age  pYLD (spreadsheet)   pYLD (CSV)
+====  ===  ==================  ===========
+Male    0           0.0206738   0.02065691
+Male    1           0.0264086  0.026387239
+Male    5           0.0337444  0.033717302
+Male   10           0.0339692  0.033941856
+Male   15           0.0634355   0.06338618
+====  ===  ==================  ===========
