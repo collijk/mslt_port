@@ -220,13 +220,19 @@ class Disease:
     def disability_adjustment(self, index, yld_rate):
         pop = self.population_view.get(index)
 
+        S, S_prev = pop[f'{self.name}_S'], pop[f'{self.name}_S_previous']
         C, C_prev = pop[f'{self.name}_C'], pop[f'{self.name}_C_previous']
+        S_int, S_int_prev = pop[f'{self.name}_S_intervention'], pop[f'{self.name}_S_intervention_previous']
         C_int, C_int_prev = pop[f'{self.name}_C_intervention'], pop[f'{self.name}_C_intervention_previous']
 
-        prevalence_change = C - C_prev
-        prevalence_change_int = C_int - C_int_prev
+        # The prevalence rate is the mean number of diseased people over the
+        # year, divided by the mean number of alive people over the year.
+        # The 0.5 multipliers in the numerator and denominator therefore cancel
+        # each other out, and can be removed.
+        prevalence_rate = (C + C_prev) / (S + C + S_prev + C_prev)
+        prevalence_rate_int = (C_int + C_int_prev) / (S_int + C_int + S_int_prev + C_int_prev)
 
-        return yld_rate + self.disability_rate(index) * (prevalence_change_int - prevalence_change)
+        return yld_rate + self.disability_rate(index) * (prevalence_rate_int - prevalence_rate)
 
     def l(self, index):
         i = self.incidence(index)
