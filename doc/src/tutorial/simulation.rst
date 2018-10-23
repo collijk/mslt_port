@@ -44,7 +44,6 @@ command:
 
    simulate run simulation_1.yaml
 
-
 .. graphviz::
    :caption: The structure of an MSLT_ simulation, where each box identifies a
        component in the MSLT_ framework.
@@ -97,6 +96,7 @@ command:
                    shape=box, margin="0.22,0.011"];
      pif -> intervention [color="#1f78b4"];
      intervention -> chronic;
+     intervention -> acute;
    }
 
 Components
