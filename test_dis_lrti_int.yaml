@@ -11,10 +11,8 @@ components:
             - Disease('colorectC')
             - AcuteDisease('lrti')
             - AcuteDisease('rta_injury')
-        intervention:
-            - ModifyDiseaseIncidence('reduce_chd', 'chd')
         observer:
-            - AdjustedPYandLE('test_dis_interv.csv')
+            - AdjustedPYandLE('test_dis_lrti_int.csv')
 
 # These settings are taken from mslt_port.data.get_default_config().
 configuration:
@@ -26,6 +24,3 @@ configuration:
         end:
             year: 2120
         step_size: 365  # In days
-    intervention:
-        reduce_chd:
-            chd_incidence_scale: 0.95

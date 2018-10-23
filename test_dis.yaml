@@ -6,11 +6,11 @@ components:
             - Disability()
         disease:
             - Disease('chd')
-            # - Disease('stroke')
-            # - Disease('lungC')
-            # - Disease('colorectC')
-            # - AcuteDisease('lrti')
-            # - AcuteDisease('rta_injury')
+            - Disease('stroke')
+            - Disease('lungC')
+            - Disease('colorectC')
+            - AcuteDisease('lrti')
+            - AcuteDisease('rta_injury')
         observer:
             - AdjustedPYandLE('test_dis.csv')
 
