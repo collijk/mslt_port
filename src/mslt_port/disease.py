@@ -53,8 +53,9 @@ class AcuteDisease:
 
 class Disease:
 
-    def __init__(self, name):
+    def __init__(self, name, simple_eqns=False):
         self.name = name
+        self.simple_eqns = simple_eqns
 
     def setup(self, builder):
         i = builder.lookup.build_table(get_incidence(self.name))
@@ -109,11 +110,11 @@ class Disease:
 
         new_S = self.update_S(
             S, C, self.incidence(idx), self.remission(idx), self.excess_mortality(idx),
-            self.l(idx), self.q(idx), self.w(idx), self.v(idx)
+            self.l(idx), self.q(idx), self.w(idx), self.v(idx), self.simple_eqns
         )
         new_C = self.update_C(
             S, C, self.incidence(idx), self.remission(idx), self.excess_mortality(idx),
-            self.l(idx), self.q(idx), self.w(idx), self.v(idx)
+            self.l(idx), self.q(idx), self.w(idx), self.v(idx), self.simple_eqns
         )
 
         new_S_intervention = self.update_S(
@@ -226,18 +227,19 @@ class Disease:
         return np.exp(-(l - q) / 2)
 
     @staticmethod
-    def update_S(S, C, i, r, f, l, q, w, v):
+    def update_S(S, C, i, r, f, l, q, w, v, simple_eqns=False):
+        # NOTE: try using simpler no-remission equations.
+        if simple_eqns and all(r == 0):
+            return S * np.exp(-i)
         new_S = (2*(v - w)*(S*(f + r) + C*r) + S*(v*(q - l) + w*(q + l))) / (2 * q)
         new_S[q == 0] = S[q == 0]
-        # NOTE: try using simpler no-remission equations.
-        new_S = S * np.exp(-i)
         return new_S
 
     @staticmethod
-    def update_C(S, C, i, r, f, l, q, w, v):
+    def update_C(S, C, i, r, f, l, q, w, v, simple_eqns=False):
+        # NOTE: try using simpler no-remission equations.
+        if simple_eqns and all(r == 0):
+            return S * S * (1 - np.exp(-i)) + C * np.exp(-f)
         new_C = -((v - w)*(2*((f + r)*(S + C) - l*S) - l*C) - (v + w)*q*C) / (2 * q)
         new_C[q == 0] = C[q == 0]
-        # NOTE: try using simpler no-remission equations.
-        # new_C = S * (- np.expm1(-i)) + C * np.exp(-f)
-        new_C = S * (1 - np.exp(-i)) + C * np.exp(-f)
         return new_C

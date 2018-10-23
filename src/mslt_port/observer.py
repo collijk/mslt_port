@@ -38,12 +38,15 @@ class AdjustedPYandLE:
     life-expectancy for each cohort at each year of the simulation.
     """
 
-    def __init__(self, output_file=None):
+    def __init__(self, output_file=None, unadjusted=False):
         """
         :param output_file: The name of the CSV file in which to record the
             adjusted person-years and adjusted life-expectancy data.
+        :param unadjusted: Whether to also record unadjusted person-years and
+            life-expectancy data.
         """
         self.output_file = output_file
+        self.unadjusted = unadjusted
 
     def setup(self, builder):
         """
@@ -192,7 +195,10 @@ class AdjustedPYandLE:
         self.data['LE'] = cumsum / self.data['population']
         # Re-order the columns to better reflect how the spreadsheet model
         # tables are arranged.
-        self.data = self.data[['year_of_birth', 'sex', 'age', 'year',
-                               'population', 'PY', 'LE', 'PYadj', 'LEadj']]
+        cols = ['year_of_birth', 'sex', 'age', 'year', 'population',
+                'PYadj', 'LEadj']
+        if self.unadjusted:
+            cols.extend(['PY', 'LE'])
+        self.data = self.data[cols]
         if self.output_file is not None:
             self.to_csv(self.output_file)
