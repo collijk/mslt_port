@@ -233,3 +233,194 @@ def get_acute_excess_mortality(disease):
 def get_acute_disability(disease):
     df = get_acute_disease_data(disease)
     return df[['year', 'age', 'sex', 'disability_rate']]
+
+
+def get_delayed_prevalence(risk_name):
+    """
+    Return the initial prevalence of a delayed risk.
+
+    Prevalence is specified as:
+
+    - The fraction of each strata that:
+
+      (a) have never been exposed ('no');
+      (b) are currently exposed ('yes'); and
+      (c) were previously exposed ('post').
+
+    - The distribution of previously-exposed is specified separately, in
+      columns 'post_0', 'post_1', ..., 'post_N', where the final column
+      denotes all previous exposures that ended N or more years ago.
+    """
+    data_path = str(Path('{}/{}_prevalence.csv'.format(DATA_DIR, risk_name))
+                    .resolve())
+    df = pd.read_csv(data_path)
+
+    # Note: this table may contain duplicate rows for the final age group.
+    subset_cols = ['age', 'sex']
+    if 'year' in df.columns:
+        subset_cols.append('year')
+    df = df.drop_duplicates(subset=subset_cols)
+
+    # Scale each of the 'post_X' columns by the proportion of the strata that
+    # were previously exposed (df['post']).
+    post_columns = [col for col in df.columns if col.startswith('post_')]
+    df.loc[:, post_columns] = df.loc[:, post_columns].mul(df['post'], axis=0)
+    df = df.drop(columns=['post'])
+
+    # Rename columns to match those expected by the DelayedRisk class.
+    rename_to = {c: c.replace('post_', '{}.'.format(risk_name))
+                 for c in post_columns}
+    rename_to['yes'] = '{}.yes'.format(risk_name)
+    rename_to['no'] = '{}.no'.format(risk_name)
+    df = df.rename(columns=rename_to)
+
+    if 'year' in df.columns:
+        data = df
+    else:
+        data = []
+        for year in range(YEAR_START, YEAR_END + 1):
+            df['year'] = year
+            data.append(df.copy())
+        data = pd.concat(data)
+
+    data = data.sort_values(by=['year', 'age', 'sex']).reset_index(drop=True)
+    return data
+
+
+def get_delayed_ir_rates(risk_name):
+    """
+    Return the incidence (uptake) and remission (cessation) rates for a
+    delayed risk.
+    """
+    data_path = str(Path('{}/{}_ir_rates.csv'.format(DATA_DIR, risk_name))
+                    .resolve())
+    df = pd.read_csv(data_path)
+
+    # Note: this table may contain duplicate rows for the final age group.
+    subset_cols = ['age', 'sex']
+    if 'year' in df.columns:
+        subset_cols.append('year')
+    df = df.drop_duplicates(subset=subset_cols)
+
+    key_columns = ['age', 'sex', 'year', 'incidence', 'remission']
+    cols = [c for c in df.columns if c in key_columns]
+    df = df[cols].fillna(0)
+
+    if 'year' in cols:
+        data = df
+    else:
+        data = []
+        for year in range(YEAR_START, YEAR_END + 1):
+            df['year'] = year
+            data.append(df.copy())
+        data = pd.concat(data)
+
+    data = data.sort_values(['year', 'age', 'sex']).reset_index()
+    return data
+
+
+def get_delayed_incidence(risk_name):
+    """
+    Return the incidence (uptake) rate for a delayed risk.
+    """
+    df = get_delayed_ir_rates(risk_name)
+    return df[['year', 'age', 'sex', 'incidence']]
+
+
+def get_delayed_remission(risk_name):
+    """
+    Return the remission (cessation) rate for a delayed risk.
+    """
+    df = get_delayed_ir_rates(risk_name)
+    return df[['year', 'age', 'sex', 'remission']]
+
+
+def get_delayed_mortality_rr(risk_name):
+    """
+    Return the relative risk of mortality associated with each exposure level
+    of a delayed risk.
+    """
+    data_path = str(Path('{}/{}_rr_mortality.csv'.format(DATA_DIR, risk_name))
+                    .resolve())
+    df = pd.read_csv(data_path)
+
+    # Rename columns to match those expected by the DelayedRisk class.
+    post_columns = [col for col in df.columns if col.startswith('post_')]
+    rename_to = {c: c.replace('post_', '{}.'.format(risk_name))
+                 for c in post_columns}
+    rename_to['yes'] = '{}.yes'.format(risk_name)
+    rename_to['no'] = '{}.no'.format(risk_name)
+    df = df.rename(columns=rename_to)
+
+    # Copy these risk columns so that they also apply to the intervention.
+    bau_prefix = '{}.'.format(risk_name)
+    int_prefix = '{}_intervention.'.format(risk_name)
+    for col in df.columns:
+        if col.startswith(bau_prefix):
+            int_col = col.replace(bau_prefix, int_prefix)
+            df[int_col] = df[col]
+
+    if 'year' in df.columns:
+        data = df
+    else:
+        data = []
+        for year in range(YEAR_START, YEAR_END + 1):
+            df['year'] = year
+            data.append(df.copy())
+        data = pd.concat(data)
+
+    data = data.sort_values(by=['year', 'age', 'sex']).reset_index(drop=True)
+    return data
+
+
+def get_delayed_disease_rr(risk_name):
+    """
+    Return the relative risk of disease incidence associated with each
+    exposure level of a delayed risk.
+
+    Note that this function returns a dictionary that maps disease names to
+    relative risk data frames, rather than returning a single data frame.
+    """
+    data_path = str(Path('{}/{}_rr_diseases.csv'.format(DATA_DIR, risk_name))
+                    .resolve())
+    df = pd.read_csv(data_path)
+    key_columns = ['age', 'sex', 'year']
+
+    # Note: this table may contain duplicate rows for the final age group.
+    subset_cols = ['age', 'sex']
+    if 'year' in df.columns:
+        subset_cols.append('year')
+    df = df.drop_duplicates(subset=subset_cols)
+
+    # Note: RRs are named "{disease}_{no|yes|post_N}"
+    tables = {}
+    diseases = [c.replace('_no', '') for c in df.columns if c.endswith('_no')]
+    for disease in diseases:
+        dis_columns = [c for c in df.columns if c.startswith(disease)]
+        dis_keys = [c for c in df.columns if c in key_columns]
+        dis_df = df[dis_keys + dis_columns]
+        dis_prefix = '{}_'.format(disease)
+        bau_prefix = '{}.'.format(risk_name)
+        int_prefix = '{}_intervention.'.format(risk_name)
+        bau_col = {c: c.replace(dis_prefix, bau_prefix).replace('post_', '')
+                   for c in dis_columns}
+        int_col = {c: c.replace(dis_prefix, int_prefix).replace('post_', '')
+                   for c in dis_columns}
+        for column in dis_columns:
+            dis_df[int_col[column]] = dis_df[column]
+        dis_df = dis_df.rename(columns=bau_col)
+
+        if 'year' in dis_df.columns:
+            data = dis_df
+        else:
+            data = []
+            for year in range(YEAR_START, YEAR_END + 1):
+                dis_df['year'] = year
+                data.append(dis_df.copy())
+            data = pd.concat(data)
+
+        data = data.sort_values(by=['year', 'age', 'sex']).reset_index(drop=True)
+
+        tables[disease] = data
+
+    return tables
