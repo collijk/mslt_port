@@ -51,6 +51,31 @@ class ModifyDiseaseMorbidity(ModifyDiseaseRate):
         super().__init__(name=name, disease=disease, rate='yld_rate')
 
 
+class ModifyAcuteDiseaseIncidence:
+    """
+    Interventions that modify an acute disease incidence rate.
+
+    Note that this intervention will simply modify both the disability rate
+    and the mortality rate for the chosen acute disease.
+    """
+
+    def __init__(self, name):
+        self.name = name
+
+    def setup(self, builder):
+        self.config = builder.configuration
+        self.scale = self.config.intervention[self.name].incidence_scale
+        if self.scale < 0:
+            raise ValueError('Invalid incidence scale: {}'.format(self.scale))
+        yld_rate = '{}_intervention.yld_rate'.format(self.name)
+        builder.value.register_value_modifier(yld_rate, self.rate_adjustment)
+        mort_rate = '{}_intervention.excess_mortality'.format(self.name)
+        builder.value.register_value_modifier(mort_rate, self.rate_adjustment)
+
+    def rate_adjustment(self, index, rates):
+        return rates * self.scale
+
+
 class ModifyAcuteDiseaseYLD:
     """Interventions that modify an acute disease disability rate."""
 
