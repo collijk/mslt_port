@@ -9,7 +9,7 @@ class BasePopulation:
     def setup(self, builder):
         self.pop_data = get_base_population()
 
-        columns = ['age', 'sex', 'population']
+        columns = ['age', 'sex', 'population', 'bau_population']
         builder.population.initializes_simulants(self.on_initialize_simulants, creates_columns=columns)
         self.population_view = builder.population.get_view(columns + ['tracked'])
 
@@ -33,12 +33,14 @@ class Mortality:
 
         builder.event.register_listener('time_step', self.on_time_step)
 
-        self.population_view = builder.population.get_view(['population'])
+        self.population_view = builder.population.get_view(['population', 'bau_population'])
 
     def on_time_step(self, event):
         pop = self.population_view.get(event.index)
         probability_of_death = 1 - np.exp(-self.mortality_rate(event.index))
         pop.population *= 1 - probability_of_death
+        bau_probability_of_death = 1 - np.exp(-self.mortality_rate.source(event.index))
+        pop.bau_population *= 1 - bau_probability_of_death
         self.population_view.update(pop)
 
 

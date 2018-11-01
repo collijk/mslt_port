@@ -60,6 +60,7 @@ def get_base_population():
             pop.loc[pop.age == age, 'pop_avg_5yr'] = pop.loc[pop.age == age_at, 'pop_avg_5yr'].values
     pop = pop[~(pop.age == AGE_GROUP_END + 1)]
     pop = pop.rename(columns={'pop_avg_5yr': 'population'})
+    pop['bau_population'] = pop['population']
     return pop.sort_values(by=['age', 'sex']).reset_index(drop=True)
 
 
