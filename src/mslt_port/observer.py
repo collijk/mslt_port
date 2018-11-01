@@ -53,7 +53,7 @@ class AdjustedPYandLE:
         """
         self.yld_rate = builder.value.get_value('yld_rate')
         self.acm_rate = builder.value.get_value('mortality_rate')
-        view_cols = ['age', 'sex', 'population']
+        view_cols = ['age', 'sex', 'population', 'bau_population']
         # TODO: ugly hack, can't extract mortality rate when initialising
         #       simulants unless the diseases have already been initialised.
         extra_cols = ['chd_S']
@@ -83,6 +83,9 @@ class AdjustedPYandLE:
         self.data['PYadj'] = np.nan
         self.data['PY'] = np.nan
         self.data['population'] = np.nan
+        self.data['bau_PYadj'] = np.nan
+        self.data['bau_PY'] = np.nan
+        self.data['bau_population'] = np.nan
 
     def on_initialize(self, pop_data):
         """
@@ -95,6 +98,9 @@ class AdjustedPYandLE:
         acm_rate_now = self.acm_rate(idx)
         yld_rate_now = self.yld_rate(idx)
         prob_death = 1 - np.exp(- acm_rate_now)
+        acm_rate_bau = self.acm_rate.source(idx)
+        yld_rate_bau = self.yld_rate.source(idx)
+        prob_death_bau = 1 - np.exp(- acm_rate_bau)
         pop = self.population_view.get(idx)
         pop['year'] = self.year_0
         pop.set_index(self.idx_cols)
@@ -103,6 +109,10 @@ class AdjustedPYandLE:
         self.create_table(pop['age'].min(), self.year_0)
         pop['PY'] = PY
         pop['PYadj'] = PY_adj
+        PY_bau = pop['bau_population'] * (1 - 0.5 * prob_death_bau)
+        PY_bau_adj = PY_bau * (1 - yld_rate_bau)
+        pop['bau_PY'] = PY_bau
+        pop['bau_PYadj'] = PY_bau_adj
         df = self.data.merge(pop, on=self.idx_cols, how='left', suffixes=('', '_new'))
         new_vals = df['PYadj_new'].notna()
         new_popn = df['population_new'].notna()
@@ -111,6 +121,9 @@ class AdjustedPYandLE:
         self.data.loc[new_vals, 'PY'] = df.loc[new_vals, 'PY_new']
         self.data.loc[new_vals, 'PYadj'] = df.loc[new_vals, 'PYadj_new']
         self.data.loc[new_vals, 'population'] = df.loc[new_vals, 'population_new']
+        self.data.loc[new_vals, 'bau_PY'] = df.loc[new_vals, 'bau_PY_new']
+        self.data.loc[new_vals, 'bau_PYadj'] = df.loc[new_vals, 'bau_PYadj_new']
+        self.data.loc[new_vals, 'bau_population'] = df.loc[new_vals, 'bau_population_new']
 
     def on_collect_metrics(self, event):
         """
@@ -121,6 +134,9 @@ class AdjustedPYandLE:
         acm_rate_now = self.acm_rate(idx)
         yld_rate_now = self.yld_rate(idx)
         prob_death = 1 - np.exp(- acm_rate_now)
+        acm_rate_bau = self.acm_rate.source(idx)
+        yld_rate_bau = self.yld_rate.source(idx)
+        prob_death_bau = 1 - np.exp(- acm_rate_bau)
         pop = self.population_view.get(idx)
         if len(pop.index) == 0:
             # No tracked population remains.
@@ -131,6 +147,10 @@ class AdjustedPYandLE:
         PY_adj = PY * (1 - yld_rate_now)
         pop['PY'] = PY
         pop['PYadj'] = PY_adj
+        PY_bau = pop['bau_population'] * (1 - 0.5 * prob_death_bau)
+        PY_bau_adj = PY_bau * (1 - yld_rate_bau)
+        pop['bau_PY'] = PY_bau
+        pop['bau_PYadj'] = PY_bau_adj
         df = self.data.merge(pop, on=self.idx_cols, how='left', suffixes=('', '_new'))
         if len(df.index) > 0:
             new_vals = df['PYadj_new'].notna()
@@ -140,6 +160,9 @@ class AdjustedPYandLE:
             self.data.loc[new_vals, 'PY'] = df.loc[new_vals, 'PY_new']
             self.data.loc[new_vals, 'PYadj'] = df.loc[new_vals, 'PYadj_new']
             self.data.loc[new_vals, 'population'] = df.loc[new_vals, 'population_new']
+            self.data.loc[new_vals, 'bau_PY'] = df.loc[new_vals, 'bau_PY_new']
+            self.data.loc[new_vals, 'bau_PYadj'] = df.loc[new_vals, 'bau_PYadj_new']
+            self.data.loc[new_vals, 'bau_population'] = df.loc[new_vals, 'bau_population_new']
 
     def get_table(self):
         """
@@ -193,12 +216,25 @@ class AdjustedPYandLE:
         grouped = self.data.loc[:, subset_cols].groupby(by=group_cols)['PY']
         cumsum = grouped.apply(lambda x: pd.Series(x[::-1].cumsum()).iloc[::-1])
         self.data['LE'] = cumsum / self.data['population']
+        # Calculate the BAU adjusted person-years and life expectancy.
+        subset_cols = group_cols + ['bau_PYadj']
+        grouped = self.data.loc[:, subset_cols].groupby(by=group_cols)['bau_PYadj']
+        cumsum = grouped.apply(lambda x: pd.Series(x[::-1].cumsum()).iloc[::-1])
+        self.data['bau_LEadj'] = cumsum / self.data['bau_population']
+        subset_cols = group_cols + ['bau_PY']
+        grouped = self.data.loc[:, subset_cols].groupby(by=group_cols)['bau_PY']
+        cumsum = grouped.apply(lambda x: pd.Series(x[::-1].cumsum()).iloc[::-1])
+        self.data['bau_LE'] = cumsum / self.data['bau_population']
+        # Calculate differences between the BAU and the intervention.
+        self.data['diff_LEadj'] = self.data['LEadj'] - self.data['bau_LEadj']
+        self.data['diff_PYadj'] = self.data['PYadj'] - self.data['bau_PYadj']
         # Re-order the columns to better reflect how the spreadsheet model
         # tables are arranged.
         cols = ['year_of_birth', 'sex', 'age', 'year', 'population',
-                'PYadj', 'LEadj']
+                'PYadj', 'LEadj', 'bau_PYadj', 'bau_LEadj',
+                'diff_LEadj', 'diff_PYadj']
         if self.unadjusted:
-            cols.extend(['PY', 'LE'])
+            cols.extend(['PY', 'LE', 'bau_PY', 'bau_LE'])
         self.data = self.data[cols]
         if self.output_file is not None:
             self.to_csv(self.output_file)
