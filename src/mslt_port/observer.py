@@ -6,6 +6,59 @@ import itertools
 
 from mslt_port.data import AGE_GROUP_END, YEAR_START, YEAR_END
 
+class MorbidityMortality:
+    """
+    This class records the all-cause morbidity and mortality rates for each
+    cohort at each year of the simulation.
+    """
+
+    def __init__(self, output_file):
+        """
+        :param output_file: The name of the CSV file in which to record the
+            morbidity and mortality data.
+        """
+        self.output_file = output_file
+
+    def setup(self, builder):
+        columns = ['age', 'sex']
+        self.population_view = builder.population.get_view(columns)
+        self.yld_rate = builder.value.get_value('yld_rate')
+        self.acm_rate = builder.value.get_value('mortality_rate')
+        self.clock = builder.time.clock()
+        builder.event.register_listener('collect_metrics', self.on_collect_metrics)
+        builder.event.register_listener('simulation_end', self.write_output)
+        self.tables = []
+        self.table_cols = ['age', 'sex', 'year',
+                           'bau_yld_rate', 'bau_mortality_rate',
+                           'int_yld_rate', 'int_mortality_rate']
+
+    def on_collect_metrics(self, event):
+        pop = self.population_view.get(event.index)
+        if len(pop.index) == 0:
+            # No tracked population remains.
+            return
+
+        pop['year'] = self.clock().year
+        pop['bau_yld_rate'] = self.yld_rate.source(event.index)
+        pop['bau_mortality_rate'] = self.acm_rate.source(event.index)
+        pop['int_yld_rate'] = self.yld_rate(event.index)
+        pop['int_mortality_rate'] = self.acm_rate(event.index)
+        self.tables.append(pop[self.table_cols])
+
+    def write_output(self, event):
+        data = pd.concat(self.tables, ignore_index=True)
+        data['year_of_birth'] = data['year'] - data['age']
+        # Sort the table by cohort (i.e., generation and sex), and then by
+        # calendar year, so that results are output in the same order as in
+        # the spreadsheet models.
+        data = data.sort_values(by=['year_of_birth', 'sex', 'age'], axis=0)
+        data = data.reset_index(drop=True)
+        # Re-order the table columns.
+        cols = ['year_of_birth'] + self.table_cols
+        data = data[cols]
+        data.to_csv(self.output_file, index=False)
+
+
 class Disease:
     """
     This class records the disease incidence rate and disease prevalence for
