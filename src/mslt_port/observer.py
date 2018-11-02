@@ -6,30 +6,75 @@ import itertools
 
 from mslt_port.data import AGE_GROUP_END, YEAR_START, YEAR_END
 
-class DiseaseObserver:
+class Disease:
+    """
+    This class records the disease incidence rate and disease prevalence for
+    each cohort at each year of the simulation.
+    """
 
-    def __init__(self, name, output_path):
+    def __init__(self, name, output_file):
+        """
+        :param name: The name of the disease.
+        :param output_file: The name of the CSV file in which to record the
+            disease data.
+        """
         self.name = name
-        self.output_path = output_path
+        self.output_file = output_file
 
     def setup(self, builder):
-        columns = [f'{self.name}_S', f'{self.name}_S_previous',
-                   f'{self.name}_C', f'{self.name}_C_previous',
-                   f'{self.name}_S_intervention', f'{self.name}_S_intervention_previous',
-                   f'{self.name}_C_intervention', f'{self.name}_C_intervention_previous']
+        bau_incidence_value = '{}.incidence'.format(self.name)
+        int_incidence_value = '{}_intervention.incidence'.format(self.name)
+        self.bau_incidence = builder.value.get_value(bau_incidence_value)
+        self.int_incidence = builder.value.get_value(int_incidence_value)
+
+        self.bau_S_col = '{}_S'.format(self.name)
+        self.bau_C_col = '{}_C'.format(self.name)
+        self.int_S_col = '{}_S_intervention'.format(self.name)
+        self.int_C_col = '{}_C_intervention'.format(self.name)
+
+        columns = ['age', 'sex',
+                   self.bau_S_col, self.bau_C_col,
+                   self.int_S_col, self.int_C_col]
         self.population_view = builder.population.get_view(columns)
 
         builder.event.register_listener('collect_metrics', self.on_collect_metrics)
         builder.event.register_listener('simulation_end', self.write_output)
 
-        idx = pd.MultiIndex.from_product([range(AGE_GROUP_END + 1), range(YEAR_START, YEAR_END + 1), ['male', 'female']])
-        self.data = pd.DataFrame(columns=['S', 'C', 'S_int', 'C_int'], index=idx)
+        self.tables = []
+        self.table_cols = ['age', 'sex', 'year',
+                           'bau_incidence', 'int_incidence',
+                           'bau_prevalence', 'int_prevalence']
+        self.clock = builder.time.clock()
 
     def on_collect_metrics(self, event):
-        pass
+        pop = self.population_view.get(event.index)
+        if len(pop.index) == 0:
+            # No tracked population remains.
+            return
+
+        pop['year'] = self.clock().year
+        pop['bau_incidence'] = self.bau_incidence(event.index)
+        pop['int_incidence'] = self.int_incidence(event.index)
+        pop['bau_prevalence'] = pop[self.bau_C_col] / (pop[self.bau_C_col] + pop[self.bau_S_col])
+        pop['int_prevalence'] = pop[self.int_C_col] / (pop[self.bau_C_col] + pop[self.bau_S_col])
+        self.tables.append(pop.loc[:, self.table_cols])
 
     def write_output(self, event):
-        pass
+        data = pd.concat(self.tables, ignore_index=True)
+        data['diff_incidence'] = data['int_incidence'] - data['bau_incidence']
+        data['diff_prevalence'] = data['int_prevalence'] - data['bau_prevalence']
+        data['year_of_birth'] = data['year'] - data['age']
+        data['disease'] = self.name
+        # Sort the table by cohort (i.e., generation and sex), and then by
+        # calendar year, so that results are output in the same order as in
+        # the spreadsheet models.
+        data = data.sort_values(by=['year_of_birth', 'sex', 'age'], axis=0)
+        data = data.reset_index(drop=True)
+        # Re-order the table columns.
+        diff_cols = ['diff_incidence', 'diff_prevalence']
+        cols = ['disease', 'year_of_birth'] + self.table_cols + diff_cols
+        data = data[cols]
+        data.to_csv(self.output_file, index=False)
 
 
 class AdjustedPYandLE:
