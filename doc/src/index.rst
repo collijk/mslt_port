@@ -55,6 +55,13 @@ Quick start
 
 .. toctree::
    :maxdepth: 2
+   :caption: Tutorial
+
+   tutorial/index
+   tutorial/first_simulation
+
+.. toctree::
+   :maxdepth: 2
    :caption: Reference
 
    reference/equations
