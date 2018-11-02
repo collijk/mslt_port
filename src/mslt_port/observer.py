@@ -87,82 +87,60 @@ class AdjustedPYandLE:
         self.data['bau_PY'] = np.nan
         self.data['bau_population'] = np.nan
 
+    def record_person_years(self, idx):
+        """
+        Record the un-adjusted and adjusted person-years for the BAU and the
+        intervention.
+        """
+        pop = self.population_view.get(idx)
+        if len(pop.index) == 0:
+            # No tracked population remains.
+            return
+
+        pop['year'] = self.clock().year
+
+        # Calculate (adjusted) person-years for the intervention.
+        int_pr_death = 1 - np.exp(- self.acm_rate(idx))
+        pop['PY'] = pop['population'] * (1 - 0.5 * int_pr_death)
+        pop['PYadj'] = pop['PY'] * (1 - self.yld_rate(idx))
+
+        # Calculate (adjusted) person-years for the BAU.
+        bau_pr_death = 1 - np.exp(- self.acm_rate.source(idx))
+        pop['bau_PY'] = pop['bau_population'] * (1 - 0.5 * bau_pr_death)
+        pop['bau_PYadj'] = pop['bau_PY'] * (1 - self.yld_rate.source(idx))
+
+        # Determine if any strata statistics need to be updated.
+        df = self.data.merge(pop, on=self.idx_cols, how='left',
+                             suffixes=('', '_new'))
+        if len(df.index) == 0:
+            # No strata to update.
+            return
+
+        # Determine which strata to update.
+        new_vals = df['PYadj_new'].notna()
+
+        # Update (adjusted) person-years and population denominators.
+        int_cols = ['PY', 'PYadj', 'population']
+        bau_cols = ['bau_{}'.format(c) for c in int_cols]
+        for col in int_cols + bau_cols:
+            new_col = '{}_new'.format(col)
+            self.data.loc[new_vals, col] = df.loc[new_vals, new_col]
+
     def on_initialize(self, pop_data):
         """
         Calculate adjusted person-years and adjusted life-expectancy before
         the first time-step.
         """
         idx = pop_data.index
-        # Record the year at which the simulation started.
-        self.year_0 = self.clock().year
-        acm_rate_now = self.acm_rate(idx)
-        yld_rate_now = self.yld_rate(idx)
-        prob_death = 1 - np.exp(- acm_rate_now)
-        acm_rate_bau = self.acm_rate.source(idx)
-        yld_rate_bau = self.yld_rate.source(idx)
-        prob_death_bau = 1 - np.exp(- acm_rate_bau)
         pop = self.population_view.get(idx)
-        pop['year'] = self.year_0
-        pop.set_index(self.idx_cols)
-        PY = pop['population'] * (1 - 0.5 * prob_death)
-        PY_adj = PY * (1 - yld_rate_now)
-        self.create_table(pop['age'].min(), self.year_0)
-        pop['PY'] = PY
-        pop['PYadj'] = PY_adj
-        PY_bau = pop['bau_population'] * (1 - 0.5 * prob_death_bau)
-        PY_bau_adj = PY_bau * (1 - yld_rate_bau)
-        pop['bau_PY'] = PY_bau
-        pop['bau_PYadj'] = PY_bau_adj
-        df = self.data.merge(pop, on=self.idx_cols, how='left', suffixes=('', '_new'))
-        new_vals = df['PYadj_new'].notna()
-        new_popn = df['population_new'].notna()
-        if not new_popn.equals(new_vals):
-            raise ValueError('New population and PYadj values differ')
-        self.data.loc[new_vals, 'PY'] = df.loc[new_vals, 'PY_new']
-        self.data.loc[new_vals, 'PYadj'] = df.loc[new_vals, 'PYadj_new']
-        self.data.loc[new_vals, 'population'] = df.loc[new_vals, 'population_new']
-        self.data.loc[new_vals, 'bau_PY'] = df.loc[new_vals, 'bau_PY_new']
-        self.data.loc[new_vals, 'bau_PYadj'] = df.loc[new_vals, 'bau_PYadj_new']
-        self.data.loc[new_vals, 'bau_population'] = df.loc[new_vals, 'bau_population_new']
+        self.create_table(pop['age'].min(), self.clock().year)
+        self.record_person_years(idx)
 
     def on_collect_metrics(self, event):
         """
         Calculate adjusted person-years for the current year.
         """
-        idx = event.index
-        year = self.clock().year
-        acm_rate_now = self.acm_rate(idx)
-        yld_rate_now = self.yld_rate(idx)
-        prob_death = 1 - np.exp(- acm_rate_now)
-        acm_rate_bau = self.acm_rate.source(idx)
-        yld_rate_bau = self.yld_rate.source(idx)
-        prob_death_bau = 1 - np.exp(- acm_rate_bau)
-        pop = self.population_view.get(idx)
-        if len(pop.index) == 0:
-            # No tracked population remains.
-            return
-        pop['year'] = year
-        # NOTE: PY(a,t_0) equation actually applies to ANY t.
-        PY = pop['population'] * (1 - 0.5 * prob_death)
-        PY_adj = PY * (1 - yld_rate_now)
-        pop['PY'] = PY
-        pop['PYadj'] = PY_adj
-        PY_bau = pop['bau_population'] * (1 - 0.5 * prob_death_bau)
-        PY_bau_adj = PY_bau * (1 - yld_rate_bau)
-        pop['bau_PY'] = PY_bau
-        pop['bau_PYadj'] = PY_bau_adj
-        df = self.data.merge(pop, on=self.idx_cols, how='left', suffixes=('', '_new'))
-        if len(df.index) > 0:
-            new_vals = df['PYadj_new'].notna()
-            new_popn = df['population_new'].notna()
-            if not new_popn.equals(new_vals):
-                raise ValueError('New population and PYadj values differ')
-            self.data.loc[new_vals, 'PY'] = df.loc[new_vals, 'PY_new']
-            self.data.loc[new_vals, 'PYadj'] = df.loc[new_vals, 'PYadj_new']
-            self.data.loc[new_vals, 'population'] = df.loc[new_vals, 'population_new']
-            self.data.loc[new_vals, 'bau_PY'] = df.loc[new_vals, 'bau_PY_new']
-            self.data.loc[new_vals, 'bau_PYadj'] = df.loc[new_vals, 'bau_PYadj_new']
-            self.data.loc[new_vals, 'bau_population'] = df.loc[new_vals, 'bau_population_new']
+        self.record_person_years(event.index)
 
     def get_table(self):
         """
@@ -179,6 +157,19 @@ class AdjustedPYandLE:
         to a CSV file.
         """
         self.get_table().to_csv(filename, index=False)
+
+    def calculate_life_expectancy(self, py_col, le_col, denom_col):
+        # Group the person-years by cohort.
+        group_cols = ['year_of_birth', 'sex']
+        subset_cols = group_cols + [py_col]
+        grouped = self.data.loc[:, subset_cols].groupby(by=group_cols)[py_col]
+        # Calculate the reverse-cumulative sums of the adjusted person-years
+        # (i.e., the present and future person-years) by:
+        #   (a) reversing the adjusted person-years values in each cohort;
+        #   (b) calculating the cumulative sums in each cohort; and
+        #   (c) restoring the original order.
+        cumsum = grouped.apply(lambda x: pd.Series(x[::-1].cumsum()).iloc[::-1])
+        self.data[le_col] = cumsum / self.data[denom_col]
 
     def finalise_output(self, event):
         """
@@ -197,35 +188,14 @@ class AdjustedPYandLE:
         self.data = self.data.sort_values(by=['year_of_birth', 'sex', 'age'],
                                           axis=0)
         self.data = self.data.reset_index(drop=True)
-        # Group the adjusted person-years by cohort
-        group_cols = ['year_of_birth', 'sex']
-        subset_cols = group_cols + ['PYadj']
-        grouped = self.data.loc[:, subset_cols].groupby(by=group_cols)['PYadj']
-        # Calculate the reverse-cumulative sums of the adjusted person-years
-        # (i.e., the present and future person-years) by:
-        #   (a) reversing the adjusted person-years values in each cohort;
-        #   (b) calculating the cumulative sums in each cohort; and
-        #   (c) restoring the original order.
-        cumsum = grouped.apply(lambda x: pd.Series(x[::-1].cumsum()).iloc[::-1])
-        # Calculate the adjusted life expectancy for each cohort at each year
-        # by dividing the remaining person-years by the population size.
-        self.data['LEadj'] = cumsum / self.data['population']
-        # Calculate the un-adjusted person-years, using the same approach as
-        # above but instead applying it to the 'PY' column.
-        subset_cols = group_cols + ['PY']
-        grouped = self.data.loc[:, subset_cols].groupby(by=group_cols)['PY']
-        cumsum = grouped.apply(lambda x: pd.Series(x[::-1].cumsum()).iloc[::-1])
-        self.data['LE'] = cumsum / self.data['population']
-        # Calculate the BAU adjusted person-years and life expectancy.
-        subset_cols = group_cols + ['bau_PYadj']
-        grouped = self.data.loc[:, subset_cols].groupby(by=group_cols)['bau_PYadj']
-        cumsum = grouped.apply(lambda x: pd.Series(x[::-1].cumsum()).iloc[::-1])
-        self.data['bau_LEadj'] = cumsum / self.data['bau_population']
-        subset_cols = group_cols + ['bau_PY']
-        grouped = self.data.loc[:, subset_cols].groupby(by=group_cols)['bau_PY']
-        cumsum = grouped.apply(lambda x: pd.Series(x[::-1].cumsum()).iloc[::-1])
-        self.data['bau_LE'] = cumsum / self.data['bau_population']
+        # Calculate (adjusted) life expectancy for BAU and the intervention.
+        self.calculate_life_expectancy('PY', 'LE', 'population')
+        self.calculate_life_expectancy('PYadj', 'LEadj', 'population')
+        self.calculate_life_expectancy('bau_PY', 'bau_LE', 'bau_population')
+        self.calculate_life_expectancy('bau_PYadj', 'bau_LEadj', 'bau_population')
         # Calculate differences between the BAU and the intervention.
+        self.data['diff_LE'] = self.data['LE'] - self.data['bau_LE']
+        self.data['diff_PY'] = self.data['PY'] - self.data['bau_PY']
         self.data['diff_LEadj'] = self.data['LEadj'] - self.data['bau_LEadj']
         self.data['diff_PYadj'] = self.data['PYadj'] - self.data['bau_PYadj']
         # Re-order the columns to better reflect how the spreadsheet model
@@ -234,7 +204,7 @@ class AdjustedPYandLE:
                 'PYadj', 'LEadj', 'bau_PYadj', 'bau_LEadj',
                 'diff_LEadj', 'diff_PYadj']
         if self.unadjusted:
-            cols.extend(['PY', 'LE', 'bau_PY', 'bau_LE'])
+            cols.extend(['PY', 'LE', 'bau_PY', 'bau_LE', 'diff_PY', 'diff_LE'])
         self.data = self.data[cols]
         if self.output_file is not None:
             self.to_csv(self.output_file)
