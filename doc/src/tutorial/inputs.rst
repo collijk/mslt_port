@@ -16,12 +16,22 @@ males aged 0--4.
 .. note:: The population sizes should be provided for the **central** cohort
    (i.e., age 2 for the 0--4 cohorts, age 7 for the 5--9 cohorts, etc).
 
-.. literalinclude:: ../../../data/inputs_take2.csv
-   :caption: An example of population input data.
+.. csv-table:: An example of population input data.
+   :header-rows: 1
    :name: input_popn
-   :language: text
-   :lines: -11
-   :append: ...
+
+   sex,age,rate,pop_avg_5yr,pYLD_rate
+   male,0,0.0043896,,0.02065691
+   male,1,0.0003401,,0.026387239
+   male,2,0.0002000,114970,0.026387239
+   male,3,0.0001700,,0.026387239
+   male,4,0.0001400,,0.026387239
+   male,5,0.0001100,,0.033717302
+   male,6,0.0000900,,0.033717302
+   male,7,0.0000700,110470,0.033717302
+   male,8,0.0000600,,0.033717302
+   male,9,0.0000500,,0.033717302
+   ...
 
 .. note:: The mortality and disability rates are indexed by **current age**
    and sex for the duration of each simulation.
@@ -45,13 +55,19 @@ Data for multiple diseases can be included in a single CSV file, because the
 column names must include the name of the disease (see the example data,
 below).
 
-.. literalinclude:: ../../../data/inputs_chd_only.csv
-   :caption: An example of chronic disease input data (not showing rows for
+.. csv-table:: An example of chronic disease input data (not showing rows for
       males aged less than 18 years).
+   :header-rows: 1
    :name: input_chronic
-   :language: text
-   :lines: 1,20-25
-   :append: ...
+
+   age,sex,chd_i,chd_r,chd_f,chd_prev,chd_DR
+   18,male,0,0,0.054859542,0,0.079310861
+   19,male,1.9034e-05,0,0.068713865,3.4998e-05,0.079310861
+   20,male,3.3026e-05,0,0.078135995,5.8316e-05,0.079310861
+   21,male,5.2293e-05,0,0.083125933,9.5965e-05,0.079310861
+   22,male,7.6836e-05,0,0.083683679,0.000152176,0.079310861
+   23,male,0.000106655,0,0.079809234,0.000231391,0.079310861
+   ...
 
 .. note:: The mortality and disability rates are indexed by **current age**
    and sex for the duration of each simulation.
@@ -63,12 +79,22 @@ Acute diseases and events data are provided as a CSV file that defines an
 excess mortality rate and a disability rate for each cohort.
 Shown below are example data for lower respiratory tract infections (LRTIs):
 
-.. literalinclude:: ../../../data/inputs_lrti.csv
-   :caption: An example of acute disease input data.
+.. csv-table:: An example of acute disease input data.
+   :header-rows: 1
    :name: input_acute
-   :language: text
-   :lines: -11
-   :append: ...
+
+   sex,age,excess_mortality,disability_rate
+   male,2,0.00000,0.00014
+   male,3,0.00000,0.00014
+   male,4,0.00000,0.00014
+   male,5,0.00000,0.00005
+   male,6,0.00000,0.00005
+   male,7,0.00000,0.00005
+   male,8,0.00000,0.00005
+   male,9,0.00000,0.00005
+   male,10,0.00001,0.00005
+   male,11,0.00001,0.00005
+   ...
 
 .. note:: The mortality and disability rates are indexed by **current age**
    and sex for the duration of each simulation.
