@@ -58,6 +58,7 @@ Quick start
    :caption: Reference
 
    reference/equations
+   reference/api
 
 Indices and tables
 ==================

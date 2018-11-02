@@ -76,7 +76,7 @@ class ModifyAcuteDiseaseIncidence:
         return rates * self.scale
 
 
-class ModifyAcuteDiseaseYLD:
+class ModifyAcuteDiseaseMorbidity:
     """Interventions that modify an acute disease disability rate."""
 
     def __init__(self, name):
