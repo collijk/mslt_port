@@ -199,8 +199,6 @@ Observers are used to record salient details during a simulation.
 The MSLT_ framework currently provides one observer,
 :class:`~mslt_port.observer.AdjustedPYandLE`.
 
-.. autoclass:: mslt_port.observer.AdjustedPYandLE
-
 Any number of observers can be included in a simulation.
 Each observer should write to a different output file.
 
@@ -214,10 +212,17 @@ Each observer should write to a different output file.
 At the end of a simulation, it will write these data to the specified output
 file:
 
-.. literalinclude:: ../../../adjusted-py-le.csv
-   :language: text
-   :lines: -6
-   :append: ...
+.. csv-table::
+   :header-rows: 1
+
+   year_of_birth,sex,age,year,population,PYadj,LEadj
+   1901,female,109,2010,207.0,99.12582282825697,0.47886870931525105
+   1901,male,109,2010,86.625,41.79833696929562,0.4825204844940331
+   1902,female,108,2010,207.0,99.12582282825697,0.7233742736210527
+   1902,female,109,2011,105.69212568445639,50.61265181130093,0.4788687093152511
+   1902,male,108,2010,86.625,41.79833696929562,0.7249870374203383
+   1902,male,109,2011,43.52906419976232,21.003665147241186,0.4825204844940331
+   ...
 
 Configuration
 -------------
