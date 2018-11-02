@@ -49,9 +49,9 @@ Quick start
    :maxdepth: 2
    :caption: Getting started
 
-   tutorial/installation
-   tutorial/simulation
-   tutorial/inputs
+   getting-started/installation
+   getting-started/simulation
+   getting-started/inputs
 
 .. toctree::
    :maxdepth: 2
