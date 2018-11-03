@@ -67,8 +67,8 @@ language = None
 rst_epilog = """
 .. _Anaconda: https://www.anaconda.com/download/
 .. _MSLT: https://github.com/collijk/mslt_port
-.. _Vivarium: https://github.com/ihmeuw/vivarium
-.. _Vivarium Public Health: https://github.com/ihmeuw/vivarium_public_health
+.. _Vivarium: https://vivarium.readthedocs.io/en/latest/
+.. _Vivarium Public Health: https://vivarium-public-health.readthedocs.io/en/latest/
 """
 
 # List of patterns, relative to source directory, that match files and

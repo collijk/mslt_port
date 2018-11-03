@@ -31,7 +31,8 @@ characterise:
   disease rates (not shown in the above example).
 
 You can then use the provided MSLT_ components (shown in the figure below) to
-incorporate these features into a simulation.
+incorporate these features into a simulation, and record output statistics
+using one or more :ref:`observers <obs_comp>`.
 
 .. note:: You may also want to adjust the :ref:`number of cohorts <popn_conf>`
    or the :ref:`simulation timescale <time_conf>`.
@@ -58,13 +59,13 @@ command:
      input [label="All-cause Mortality Rate\nDisability Rate\nDemographics",
             color="#1f78b4", margin="0.11"];
      popn [label="Population",
-           href="../tutorial/simulation.html#population", target="_top",
+           href="../getting-started/simulation.html#population", target="_top",
            shape=box, margin="0.22,0.011"];
      mslt [label="Life Table",
            style="dashed",
            shape=box, margin="0.22,0.011"];
      obs [label="Observer",
-          href="../tutorial/simulation.html#observers", target="_top",
+          href="../getting-started/simulation.html#observers", target="_top",
           shape=box, margin="0.22,0.011"];
      output [label="Adjusted life-years\nAdjusted life-expectancy",
              color="#33a02c", margin="0.11"];
@@ -73,7 +74,7 @@ command:
      obs -> output [color="#33a02c"];
      delta [label="ΔACMR\nΔYLDR", color="transparent"];
      chronic [label="Chronic Disease",
-              href="../tutorial/simulation.html#chronic-diseases",
+              href="../getting-started/simulation.html#chronic-diseases",
               target="_top",
               shape=box, margin="0.22,0.011"];
      chronic_input [
@@ -82,7 +83,7 @@ command:
      chronic_input -> chronic [color="#1f78b4"];
      chronic -> delta -> mslt;
      acute [label="Acute Disease",
-            href="../tutorial/simulation.html#acute-diseases-and-events",
+            href="../getting-started/simulation.html#acute-diseases-and-events",
             target="_top",
             shape=box, margin="0.22,0.011"];
      acute_input [label="Mortality\nDisability",
@@ -91,7 +92,7 @@ command:
      acute -> delta;
      pif [label="PIF", color="#1f78b4", margin="0.11"];
      intervention [label="Intervention",
-                   href="../tutorial/simulation.html#interventions",
+                   href="../getting-started/simulation.html#interventions",
                    target="_top",
                    shape=box, margin="0.22,0.011"];
      pif -> intervention [color="#1f78b4"];

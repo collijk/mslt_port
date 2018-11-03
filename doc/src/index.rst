@@ -1,57 +1,41 @@
 Multi-state Life Table macro-simulations using Vivarium
 =======================================================
 
-This repository implements a Multi-state Life Table (MSLT) macro-simulation
-framework built on top of `Vivarium`_.
+Multi-state life table (MSLT) modelling is a tool that can be used to predict
+the impact of preventative interventions on chronic disease morbidity and
+mortality, in terms of standard metrics such as health-adjusted life years
+(HALYs).
 
-Quick start
------------
+This documentation describes how to use this `MSLT`_ framework, as introduced
+in the paper "Multistate lifetable modelling of preventive interventions:
+Concept and Python code".
+This macro-simulation framework is built on top of the `Vivarium`_
+micro-simulation framework.
 
-1. Ensure that `Vivarium`_ and the `MSLT`_ framework are both
-   :ref:`installed <installation>`.
+How to use this documentation
+-----------------------------
 
-2. Define a simulation, which comprises the :ref:`population <popn_comp>`,
-   :ref:`time period <time_conf>`, :ref:`chronic <chronic_comp>` and
-   :ref:`acute <acute_comp>` diseases, and
-   :ref:`interventions <interv_comp>`.
-   An example simulation definition is shown below.
+First, ensure that `Vivarium`_ and the `MSLT`_ framework are both
+:ref:`installed <installation>`.
+Then refer to the documentation that best suits your learning style:
 
-   .. literalinclude:: ../../test_adjPY.yaml
-      :caption: The contents of ``test_adjPY.yaml``.
-      :language: yaml
-      :lines: 11-21,23-
+- To learn how to reproduce each of the simulations presented in the paper,
+  and how to adapt these simulations to your own scenarios, see the
+  :ref:`tutorial <tutorial_overview>`, which presents a bottom-up
+  introduction to the MSLT framework.
 
-3. Run the simulation:
+- For a top-down introduction to the MSLT framework, see the :ref:`getting
+  started guide <getting_started>`.
 
-   .. code-block:: sh
-
-      simulate run test_adjPY.yaml
-
-4. Examine the simulation outputs.
-   In the example simulation shown above, the ``AdjustedPYandLE`` observer was
-   used to record adjusted person-years and adjusted life-expectancy for each
-   population cohort at each year of the simulation.
-   These data are written to the CSV file ``adjusted-py-le.csv``.
-   An extract of this data file is shown below.
-
-   .. literalinclude:: ../../adjusted-py-le.csv
-      :caption: The contents of ``adjusted-py-le.csv``.
-      :language: text
-      :lines: -11
-      :append: ...
+- To learn about the underlying equations and the Python classes that
+  implement these equations, see the :ref:`reference documentation
+  <reference>`.
 
 .. toctree::
    :hidden:
 
    Home <self>
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Getting started
-
-   getting-started/installation
-   getting-started/simulation
-   getting-started/inputs
+   installation
 
 .. toctree::
    :maxdepth: 2
@@ -62,8 +46,17 @@ Quick start
 
 .. toctree::
    :maxdepth: 2
+   :caption: Getting started
+
+   getting-started/index
+   getting-started/simulation
+   getting-started/inputs
+
+.. toctree::
+   :maxdepth: 2
    :caption: Reference
 
+   reference/index
    reference/equations
    reference/api
 
