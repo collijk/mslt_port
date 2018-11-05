@@ -21,44 +21,43 @@ def main(args=None):
     art = Artifact(artifact_file)
 
     # Store the basic population data.
-    art.write('population.cohort_size', data.get_base_population())
-    art.write('population.morbidity_rate', data.get_yld_rate())
-    art.write('population.mortality_rate', data.get_all_cause_mortality())
+    art.write('population.structure', data.get_base_population())
+    art.write('cause.all_causes.mortality', data.get_yld_rate())
+    art.write('cause.all_causes.disability_rate', data.get_all_cause_mortality())
 
     # Store data for each chronic disease.
     for disease in ['chd', 'stroke', 'lungC', 'colorectC']:
-        art.write('chronic_disease.{}.incidence_rate'.format(disease),
+        art.write('chronic_disease.{}.incidence'.format(disease),
                   data.get_incidence(disease))
-        art.write('chronic_disease.{}.remission_rate'.format(disease),
+        art.write('chronic_disease.{}.remission'.format(disease),
                   data.get_remission(disease))
-        art.write('chronic_disease.{}.mortality_rate'.format(disease),
+        art.write('chronic_disease.{}.mortality'.format(disease),
                   data.get_excess_mortality(disease))
-        art.write('chronic_disease.{}.morbidity_rate'.format(disease),
+        art.write('chronic_disease.{}.morbidity'.format(disease),
                   data.get_disability(disease))
         art.write('chronic_disease.{}.prevalence'.format(disease),
                   data.get_prevalence(disease))
 
     # Store data for each acute disease/event.
     for disease in ['lrti', 'rta_injury']:
-        art.write('acute_disease.{}.mortality_rate'.format(disease),
+        art.write('acute_disease.{}.mortality'.format(disease),
                   data.get_acute_excess_mortality(disease))
-        art.write('acute_disease.{}.morbidity_rate'.format(disease),
+        art.write('acute_disease.{}.morbidity'.format(disease),
                   data.get_acute_disability(disease))
 
     # Store data for tobacco use.
     for exposure in ['tobacco']:
-        art.write('exposure.{}.incidence_rate'.format(exposure),
+        art.write('risk_factor.{}.incidence'.format(exposure),
                   data.get_delayed_incidence(exposure))
-        art.write('exposure.{}.remission_rate'.format(exposure),
+        art.write('risk_factor.{}.remission'.format(exposure),
                   data.get_delayed_remission(exposure))
-        art.write('exposure.{}.prevalence'.format(exposure),
+        art.write('risk_factor.{}.prevalence'.format(exposure),
                   data.get_delayed_prevalence(exposure))
-        art.write('exposure.{}.mortality_relative_risk'.format(exposure),
+        art.write('risk_factor.{}.mortality_relative_risk'.format(exposure),
                   data.get_delayed_mortality_rr(exposure))
-        disease_rrs = data.get_delayed_disease_rr(exposure)
-        for disease in disease_rrs:
-            art.write('exposure.{}.{}_relative_risk'.format(exposure, disease),
-                      disease_rrs[disease])
+        disease_rrs = data.get_delayed_disease_rr(exposure, single_table=True)
+        art.write('risk_factor.{}.disease_relative_risk'.format(exposure),
+                  disease_rrs)
 
     print(art)
 
