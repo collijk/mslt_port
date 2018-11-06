@@ -22,7 +22,9 @@ def main(args=None):
 
     # Store the basic population data.
     art.write('population.structure', data.get_base_population())
-    art.write('cause.all_causes.disability_rate', data.get_yld_rate())
+    # Ensure that the disability rate data are sorted as required.
+    yld_data = data.get_yld_rate().sort_values(by=['age', 'sex']).reset_index(drop=True)
+    art.write('cause.all_causes.disability_rate', yld_data)
     art.write('cause.all_causes.mortality', data.get_all_cause_mortality())
 
     # Store data for each chronic disease.
