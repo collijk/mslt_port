@@ -374,13 +374,18 @@ def get_delayed_mortality_rr(risk_name):
     return data
 
 
-def get_delayed_disease_rr(risk_name):
+def get_delayed_disease_rr(risk_name, single_table=False):
     """
     Return the relative risk of disease incidence associated with each
     exposure level of a delayed risk.
 
     Note that this function returns a dictionary that maps disease names to
     relative risk data frames, rather than returning a single data frame.
+
+    :param risk_name: The name of the risk.
+    :param single_table: Whether to return separate tables for each default
+        (the default, `False`) or to return a single table for all diseases
+        (`True`).
     """
     data_path = str(Path('{}/{}_rr_diseases.csv'.format(DATA_DIR, risk_name))
                     .resolve())
@@ -392,6 +397,9 @@ def get_delayed_disease_rr(risk_name):
     if 'year' in df.columns:
         subset_cols.append('year')
     df = df.drop_duplicates(subset=subset_cols)
+
+    if single_table:
+        return df
 
     # Note: RRs are named "{disease}_{no|yes|post_N}"
     tables = {}
