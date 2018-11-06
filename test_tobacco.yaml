@@ -1,22 +1,33 @@
+plugins:
+    optional:
+        data:
+            controller: "vivarium_public_health.dataset_manager.ArtifactManager"
+            builder_interface: "vivarium_public_health.dataset_manager.ArtifactManagerInterface"
+
 components:
-    mslt_port:
-        population:
-            - BasePopulation()
-            - Mortality()
-            - Disability()
-        delay:
-            - DelayedRisk('tobacco')
-        disease:
-            - Disease('chd')
-            - Disease('stroke')
-            - Disease('lungC')
-            - Disease('colorectC')
-            - AcuteDisease('lrti')
-            - AcuteDisease('rta_injury')
-        observer:
-            - AdjustedPYandLE('test_tobacco.csv')
+    vivarium_public_health:
+        mslt:
+            population:
+                - BasePopulation()
+                - Mortality()
+                - Disability()
+            delay:
+                - DelayedRisk('tobacco')
+            disease:
+                - Disease('chd')
+                - Disease('stroke')
+                - Disease('lungC')
+                - Disease('colorectC')
+                - AcuteDisease('lrti')
+                - AcuteDisease('rta_injury')
+            observer:
+                - AdjustedPYandLE('test_tobacco.csv')
+                # - MorbidityMortality('test_tobacco_mm.csv')
+                # - Disease('stroke', 'test_tobacco_stroke.csv')
 
 configuration:
+    input_data:
+        artifact_path: input_data.hdf
     population:
         population_size: 220 # Males and females, aged 0 to 109.
     time:
