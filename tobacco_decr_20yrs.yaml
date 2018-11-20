@@ -1,0 +1,74 @@
+plugins:
+    optional:
+        data:
+            controller: "vivarium_public_health.dataset_manager.ArtifactManager"
+            builder_interface: "vivarium_public_health.dataset_manager.ArtifactManagerInterface"
+
+components:
+    vivarium_public_health:
+        mslt:
+            population:
+                - BasePopulation()
+                - Mortality()
+                - Disability()
+            delay:
+                - DelayedRisk('tobacco')
+            disease:
+                - Disease('CHD')
+                - Disease('Stroke')
+                # - Disease('Type2Diabetes')
+                - Disease('LungCancer')
+                - Disease('HeadNeckCancer')
+                - Disease('OesophagusCancer')
+                - Disease('StomachCancer')
+                - Disease('LiverCancer')
+                - Disease('ColorectalCancer')
+                - Disease('PancreasCancer')
+                - Disease('CervicalCancer')
+                - Disease('BladderCancer')
+                - Disease('KidneyCancer')
+                - Disease('EndometrialCancer')
+                - Disease('Melanoma')
+                - Disease('ThyroidCancer')
+                - Disease('COPD')
+                - AcuteDisease('LRTI')
+            observer:
+                - AdjustedPYandLE('tobacco_decr_20yrs_haly.csv')
+                - MorbidityMortality('tobacco_decr_20yrs_mm.csv')
+                - Disease('Stroke', 'tobacco_decr_20yrs_stroke.csv')
+    mslt_port:
+        intervention:
+            - TobaccoEradication()
+
+configuration:
+    input_data:
+        artifact_path: tobacco_data_decr_20yrs.hdf
+    population:
+        population_size: 220 # Males and females, aged 0 to 109.
+    time:
+        start:
+            year: 2011
+        end:
+            year: 2120
+        step_size: 365  # In days
+    tobacco:
+        affects:
+            # This is where the affected diseases should be listed.
+            CHD:
+            COPD:
+            BladderCancer:
+            CervicalCancer:
+            ColorectalCancer:
+            EndometrialCancer:
+            KidneyCancer:
+            LiverCancer:
+            LungCancer:
+            OesophagusCancer:
+            PancreasCancer:
+            StomachCancer:
+            ThyroidCancer:
+            LRTI:
+            Melanoma:
+            Stroke:
+    tobacco_eradication:
+        year: 2020
