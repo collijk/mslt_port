@@ -16,8 +16,6 @@ import pandas as pd
 from vivarium_public_health.dataset_manager import hdf
 from vivarium_public_health.dataset_manager.artifact import Artifact
 
-import mslt_port.data as data
-
 
 
 def main(args=None):
@@ -26,11 +24,27 @@ def main(args=None):
     """
 
     # The location of the input data files.
-    data_dir = './data'
+    data_root_dir = './data'
 
     # The first year of the simulation.
     year_start = 2011
 
+    # Generate artifacts for the Maori and non-Maori populations.
+    populations = ['non-maori', 'maori']
+    for population in populations:
+        data_dir = '{}/{}'.format(data_root_dir, population)
+        artifact_prefix = 'tobacco_data_{}'.format(population)
+        build_population_artifacts(data_dir, artifact_prefix, year_start)
+
+
+def build_population_artifacts(data_dir, artifact_prefix, year_start):
+    """
+    Build a set of artifacts for a specific population.
+
+    :param data_dir: The directory containing the input data files.
+    :param artifact_prefix: The prefix for artifact file names.
+    :param year_start: The first year of the simulation.
+    """
     # Load all of the input data.
     df_base = get_base_population_data(data_dir, year_start)
     df_dis = get_diseases(data_dir, year_start)
@@ -40,7 +54,7 @@ def main(args=None):
     df_tob_rr_d = get_tobacco_diseases_rr(data_dir, df_tob)
 
     # Build all of the required artifacts.
-    artifact_pattern = 'tobacco_data_{}_{}.hdf'
+    artifact_pattern = artifact_prefix + '_{}_{}.hdf'
     bau_label = {True: 'const', False: 'decr'}
     delay_label = {True: '0yrs', False: '20yrs'}
 

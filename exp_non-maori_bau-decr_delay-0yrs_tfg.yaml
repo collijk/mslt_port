@@ -33,16 +33,16 @@ components:
                 - Disease('COPD')
                 - AcuteDisease('LRTI')
             observer:
-                - AdjustedPYandLE('tobacco_decr_20yrs_haly.csv')
-                - MorbidityMortality('tobacco_decr_20yrs_mm.csv')
-                - Disease('Stroke', 'tobacco_decr_20yrs_stroke.csv')
+                - AdjustedPYandLE('exp_non-maori_bau-decr_delay-0yrs_tfg_haly.csv')
+                - MorbidityMortality('exp_non-maori_bau-decr_delay-0yrs_tfg_mm.csv')
+                - Disease('CHD', 'exp_non-maori_bau-decr_delay-0yrs_tfg_chd.csv')
     mslt_port:
         intervention:
-            - TobaccoEradication()
+            - TobaccoFreeGeneration()
 
 configuration:
     input_data:
-        artifact_path: tobacco_data_decr_20yrs.hdf
+        artifact_path: tobacco_data_non-maori_decr_0yrs.hdf
     population:
         population_size: 220 # Males and females, aged 0 to 109.
     time:
@@ -52,6 +52,7 @@ configuration:
             year: 2120
         step_size: 365  # In days
     tobacco:
+        delay: 0
         affects:
             # This is where the affected diseases should be listed.
             CHD:
@@ -71,4 +72,6 @@ configuration:
             Melanoma:
             Stroke:
     tobacco_eradication:
+        year: 2020
+    tobacco_free_generation:
         year: 2020
