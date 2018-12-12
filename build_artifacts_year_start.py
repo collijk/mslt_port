@@ -95,17 +95,23 @@ def get_base_population_data(data_dir, year_start):
             df.loc[df.age == age, 'population'] = avg_values
             df.loc[df.age == age, 'bau_population'] = avg_values
 
+    df = df.rename(columns={'age': 'age_group_start'})
+    df['age_group_end'] = df['age_group_start'] + 1
+
     # Retain only the necessary columns.
     # df['year'] = year_start
     df['year_start'] = year_start
-    df['year_end'] = year_start + 110
-    df = df[['year_start', 'year_end', 'age', 'sex', 'population', 'bau_population',
-             'disability_rate', 'mortality_rate', 'mortality_apc']]
+    df['year_end'] = year_start + 1
+    df = df.reindex(columns=['year_start', 'year_end',
+                             'age_group_start', 'age_group_end',
+                             'sex', 'population', 'bau_population',
+                             'disability_rate', 'mortality_rate',
+                             'mortality_apc'])
 
     # Remove strata that have already reached the terminal age.
-    df = df[~ (df.age == df['age'].max())]
+    df = df[~ (df['age_group_start'] == df['age_group_start'].max())]
 
-    return df.sort_values(by=['year_start', 'age', 'sex']).reset_index(drop=True)
+    return df.sort_values(by=['year_start', 'sex', 'age_group_start']).reset_index(drop=True)
 
 
 def get_population(df_base):
@@ -114,7 +120,8 @@ def get_population(df_base):
 
     :param df_base: The base population data.
     """
-    df = df_base[['age', 'sex', 'population', 'bau_population']]
+    df = df_base.reindex(columns=['age_group_start', 'age_group_end',
+                                  'sex', 'population', 'bau_population'])
     return df
 
 
@@ -125,8 +132,10 @@ def get_acmr_apc(df_base, year_start):
     :param df_base: The base population data.
     :param year_start: The first year of the simulation.
     """
-    year_end = year_start + df_base['age'].max() - df_base['age'].min()
-    df = df_base[['year_start', 'year_end', 'age', 'sex', 'mortality_apc']]
+    year_end = year_start + df_base['age_group_start'].max() - df_base['age_group_end'].min()
+    df = df_base.reindex(columns=['year_start', 'year_end',
+                                  'age_group_start', 'age_group_end',
+                                  'sex', 'mortality_apc'])
     df = df.rename(columns={'mortality_apc': 'value'})
 
     tables = []
@@ -135,7 +144,7 @@ def get_acmr_apc(df_base, year_start):
         df['year_end'] = year + 1
         tables.append(df.copy())
 
-    df = pd.concat(tables).sort_values(['year_start', 'year_end', 'age', 'sex'])
+    df = pd.concat(tables).sort_values(['year_start', 'sex', 'age_group_start'])
     df = df.reset_index(drop=True)
 
     return df
@@ -147,7 +156,8 @@ def get_disability_rate(df_base):
 
     :param df_base: The base population data.
     """
-    df = df_base[['age', 'sex', 'disability_rate']]
+    df = df_base.reindex(columns=['age_group_start', 'age_group_end',
+                                  'sex', 'disability_rate'])
     df = df.rename(columns={'disability_rate': 'rate'})
     return df
 
@@ -163,10 +173,12 @@ def get_mortality_rate(df_base):
         year_start = year_start[0]
     else:
         raise ValueError('Invalid starting year: {}'.format(year_start))
-    year_end = year_start + df_base['age'].max() - df_base['age'].min()
+    year_end = year_start + df_base['age_group_start'].max() - df_base['age_group_end'].min()
 
     df_apc = get_acmr_apc(df_base, year_start)
-    df_acmr = df_base[['year_start', 'year_end', 'age', 'sex', 'mortality_rate']]
+    df_acmr = df_base.reindex(columns=['year_start', 'year_end', 'sex',
+                                       'age_group_start', 'age_group_end',
+                                       'mortality_rate'])
     df_acmr = df_acmr.rename(columns={'mortality_rate': 'rate'})
 
     tables = [df_acmr.copy()]
@@ -179,7 +191,7 @@ def get_mortality_rate(df_base):
         df_acmr['year_end'] = year + 2
         tables.append(df_acmr.copy())
 
-    df = pd.concat(tables).sort_values(['year_start', 'age', 'sex'])
+    df = pd.concat(tables).sort_values(['year_start', 'sex', 'age_group_start'])
     df = df.reset_index(drop=True)
 
     return df
@@ -205,7 +217,9 @@ def get_base_disease_data(data_dir, year_start):
     # Create the base disease table.
     out = pd.DataFrame(data={'year_start': year_start,
                              'year_end': year_start + 110,
-                             'age': age, 'sex': sex})
+                             'age_group_start': age, 'sex': sex})
+    out['age_group_start'] = out['age_group_start'].astype(int)
+    out['age_group_end'] = out['age_group_start'] + 1
 
     # Extract the first row, which lists the diseases.
     disease_headers = df.iloc[0, 2:].fillna('').str.strip()
@@ -288,7 +302,7 @@ def get_base_disease_data(data_dir, year_start):
         else:
             raise ValueError('Invalid columns for disease {}'.format(disease))
 
-    out = out.sort_values(['year_start', 'age', 'sex']).reset_index(drop=True)
+    out = out.sort_values(['year_start', 'sex', 'age_group_start']).reset_index(drop=True)
     if np.any(out.isna()):
         raise ValueError('NA values found in disease data')
     return out
@@ -354,20 +368,24 @@ def get_diseases(data_dir, year_start, apc_num_years=15):
         year_start = year_start[0]
     else:
         raise ValueError('Invalid starting year: {}'.format(year_start))
-    year_end = year_start + df_dis['age'].max() - df_dis['age'].min()
+    year_end = year_start + df_dis['age_group_start'].max() - df_dis['age_group_start'].min()
 
     apc_tables = []
-    for age in range(df_dis['age'].min(), df_dis['age'].max() + 1):
-        df_apc['age'] = age
+    for age in range(df_dis['age_group_start'].min(), df_dis['age_group_start'].max() + 1):
+        df_apc['age_group_start'] = age
+        df_apc['age_group_end'] = age + 1
         apc_tables.append(df_apc.copy())
-    df_apc = pd.concat(apc_tables).sort_values(['age', 'sex'])
+    df_apc = pd.concat(apc_tables).sort_values(['sex', 'age_group_start'])
     df_apc = df_apc.reset_index(drop=True)
 
     # Determine which rates are affected by an annual percent change, and
     # calculate the scaling factor for each of these rates.
     modify_rates = [c for c in df_apc.columns.values
                     if c in df_dis.columns.values
-                    and c not in ['year', 'age', 'sex']]
+                    # and c not in ['year', 'age', 'sex']]
+                    and c not in ['year_start', 'year_end',
+                                  'age_group_start', 'age_group_end',
+                                  'sex']]
     scale_by = 1.0 + df_apc.loc[:, modify_rates].values / 100
 
     tables = [df_dis.copy()]
@@ -379,7 +397,7 @@ def get_diseases(data_dir, year_start, apc_num_years=15):
         df_dis['year_end'] = year + 2
         tables.append(df_dis.copy())
 
-    df = pd.concat(tables).sort_values(['year_start', 'age', 'sex'])
+    df = pd.concat(tables).sort_values(['year_start', 'sex', 'age_group_start'])
     df = df.reset_index(drop=True)
 
     return df
@@ -397,7 +415,9 @@ def get_base_tobacco_rates(data_dir, year_start):
     df = df.rename(columns={'uptake': 'incidence', 'Cessation': 'remission'})
     df['year_start'] = year_start
     df['year_end'] = year_start + 1
-    df = df.sort_values(by=['year_start', 'age', 'sex']).reset_index(drop=True)
+    df['age_group_start'] = df['age']
+    df['age_group_end'] = df['age'] + 1
+    df = df.sort_values(by=['year_start', 'sex', 'age_group_start']).reset_index(drop=True)
     return df
 
 
@@ -424,20 +444,23 @@ def get_tobacco_rates(data_dir, year_start):
     df = get_base_tobacco_rates(data_dir, year_start)
     df_apc = get_tobacco_rates_apc(data_dir)
 
-    year_end = year_start + df['age'].max() - df['age'].min()
+    year_end = year_start + df['age_group_start'].max() - df['age_group_start'].min()
 
     apc_tables = []
-    for age in range(df['age'].min(), df['age'].max() + 1):
-        df_apc['age'] = age
+    for age in range(df['age_group_start'].min(), df['age_group_start'].max() + 1):
+        df_apc['age_group_start'] = age
+        df_apc['age_group_end'] = age + 1
         apc_tables.append(df_apc.copy())
-    df_apc = pd.concat(apc_tables).sort_values(['age', 'sex'])
+    df_apc = pd.concat(apc_tables).sort_values(['sex', 'age_group_start'])
     df_apc = df_apc.reset_index(drop=True)
 
     # Determine which rates are affected by an annual percent change, and
     # calculate the scaling factor for each of these rates.
     modify_rates = [c for c in df_apc.columns.values
                     if c in df.columns.values
-                    and c not in ['year', 'age', 'sex']]
+                    and c not in ['year_start', 'year_end',
+                                  'age_group_start', 'age_group_end',
+                                  'sex']]
     scale_by = 1.0 + df_apc.loc[:, modify_rates].values / 100
 
     tables = [df.copy()]
@@ -448,7 +471,7 @@ def get_tobacco_rates(data_dir, year_start):
         df['year_end'] = year + 2
         tables.append(df.copy())
 
-    df = pd.concat(tables).sort_values(['year_start', 'age', 'sex'])
+    df = pd.concat(tables).sort_values(['year_start', 'sex', 'age_group_start'])
     df = df.reset_index(drop=True)
 
     if np.any(df.isna()):
@@ -482,17 +505,19 @@ def get_tobacco_mortality_rr(data_dir, df_tob):
     df = df.fillna(1.0)
     final_col = 'tobacco.{}'.format(num_cols - 2)
     df[final_col] = 1.0
+    df = df.rename(columns={'age': 'age_group_start'})
     df.insert(0, 'year_start', year_start)
     df.insert(1, 'year_end', year_start + 1)
-    df.insert(4, 'tobacco.no', 1.0)
-    df = df.sort_values(by=['year_start', 'age', 'sex']).reset_index(drop=True)
+    df.insert(4, 'age_group_end', df['age_group_start'] + 1)
+    df.insert(5, 'tobacco.no', 1.0)
+    df = df.sort_values(by=['year_start', 'sex', 'age_group_start']).reset_index(drop=True)
 
     # NOTE: the relative risk for a current smoker is the same as that of
     # someone who has stopped smoking one year later (i.e., the values in the
     # 'post_0' column, but shifted up by 1. Here, we shift up by two to skip
     # over the strata of the other sex.
     df.insert(5, 'tobacco.yes', df['tobacco.0'].shift(-2))
-    df.loc[df['age'] == df['age'].max(), 'tobacco.yes'] = 1.0
+    df.loc[df['age_group_start'] == df['age_group_start'].max(), 'tobacco.yes'] = 1.0
     df.loc[df['tobacco.yes'].isna(), 'tobacco.yes'] = 1.0
 
     # Copy these RR columns so that they also apply to the intervention.
@@ -509,7 +534,7 @@ def get_tobacco_mortality_rr(data_dir, df_tob):
         df['year_end'] = year + 1
         tables.append(df.copy())
 
-    df = pd.concat(tables).sort_values(['year_start', 'age', 'sex'])
+    df = pd.concat(tables).sort_values(['year_start', 'sex', 'age_group_start'])
     df = df.reset_index(drop=True)
 
     if np.any(df.isna()):
@@ -546,7 +571,9 @@ def get_tobacco_diseases_rr(data_dir, df_tob):
     # Create the base disease table.
     out = pd.DataFrame(data={'year_start': year_start,
                              'year_end': year_start + 1,
-                             'age': age, 'sex': sex})
+                             'age_group_start': age,
+                             'age_group_end': age + 1,
+                             'sex': sex})
 
     # Extract the first row, which lists the diseases.
     disease_headers = df.iloc[0, 2:].fillna('').str.strip()
@@ -609,7 +636,7 @@ def get_tobacco_diseases_rr(data_dir, df_tob):
         tables.append(out.copy())
 
     out = pd.concat(tables)
-    out = out.sort_values(['year_start', 'age', 'sex']).reset_index(drop=True)
+    out = out.sort_values(['year_start', 'sex', 'age_group_start']).reset_index(drop=True)
     if np.any(out.isna()):
         raise ValueError('NA values found in tobacco disease RR data')
     return out
@@ -623,7 +650,7 @@ def get_tobacco_prevalence(data_dir, df_tob):
     :param df_tob: The tobacco rates for each year of the simulation.
     """
     year_start = df_tob['year_start'].min()
-    year_end = year_start + df_tob['age'].max() - df_tob['age'].min()
+    year_end = year_start + df_tob['age_group_start'].max() - df_tob['age_group_start'].min()
     if year_end != df_tob['year_start'].max():
         year_exp = df_tob['year_start'].max()
         raise ValueError('Invalid final year, {} != {}'.format(year_end,
@@ -634,8 +661,9 @@ def get_tobacco_prevalence(data_dir, df_tob):
     df = pd.read_csv(data_path).fillna(0.0)
     df = df.rename(columns={'never': 'tobacco.no',
                             'current ': 'tobacco.yes',
-                            'former': 'tobacco.post'})
-    index_cols = ['sex', 'age']
+                            'former': 'tobacco.post',
+                            'age': 'age_group_start'})
+    index_cols = ['sex', 'age_group_start', 'age_group_end']
     post_cols = [c for c in df.columns
                  if c not in index_cols and not c.startswith('tobacco.')]
 
@@ -653,6 +681,7 @@ def get_tobacco_prevalence(data_dir, df_tob):
 
     df.insert(0, 'year_start', year_start)
     df.insert(1, 'year_end', year_start + 1)
+    df.insert(4, 'age_group_end', df['age_group_start'] + 1)
     tables = []
     for year in range(year_start, year_end + 1):
         df['year_start'] = year
@@ -660,11 +689,11 @@ def get_tobacco_prevalence(data_dir, df_tob):
         tables.append(df.copy())
 
     df = pd.concat(tables)
-    df = df.sort_values(by=['year_start', 'age', 'sex']).reset_index(drop=True)
+    df = df.sort_values(by=['year_start', 'sex', 'age_group_start']).reset_index(drop=True)
 
     # Check that each row sums to unity.
     toln = 1e-12
-    max_err = (1 - df.iloc[:, 4:].sum(axis=1)).abs().max()
+    max_err = (1 - df.iloc[:, 5:].sum(axis=1)).abs().max()
     if max_err > toln:
         raise ValueError('Tobacco prevalence rows do not sum to 1')
 
@@ -674,11 +703,11 @@ def get_tobacco_prevalence(data_dir, df_tob):
     return df
 
 
-def age_groups(df):
-    # df = df.rename(columns={'age': 'age_group_start'})
-    df['year'] = df['year_start']
-    df['age_group_start'] = df['age'] + 1
-    df['age_group_end'] = df['age'] + 1
+def check_age_groups(df):
+    invalid = df['age_group_end'] != df['age_group_start'] + 1
+    if np.any(invalid):
+        print(df[invalid].head().to_string())
+        raise ValueError('Invalid age cohort')
     return df
 
 
@@ -709,17 +738,24 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
 
     art = Artifact(artifact_file)
 
-    df_base = age_groups(df_base)
-    df_dis = age_groups(df_dis)
-    df_tob = age_groups(df_tob)
-    df_tob_prev = age_groups(df_tob_prev)
-    df_tob_rr_m = age_groups(df_tob_rr_m)
-    df_tob_rr_d = age_groups(df_tob_rr_d)
+    df_base = check_age_groups(df_base)
+    df_dis = check_age_groups(df_dis)
+    df_tob = check_age_groups(df_tob)
+    df_tob_prev = check_age_groups(df_tob_prev)
+    df_tob_rr_m = check_age_groups(df_tob_rr_m)
+    df_tob_rr_d = check_age_groups(df_tob_rr_d)
+
+    df_mortality = check_age_groups(get_mortality_rate(df_base))
+    print(df_mortality[(df_mortality['sex'] == 'female')
+                       & (df_mortality['age_group_start'] == 0)])
 
     # Store the basic population data.
-    art.write('population.structure', get_population(df_base))
-    art.write('cause.all_causes.disability_rate', get_disability_rate(df_base))
-    art.write('cause.all_causes.mortality', get_mortality_rate(df_base))
+    art.write('population.structure',
+              check_age_groups(get_population(df_base)))
+    art.write('cause.all_causes.disability_rate',
+              check_age_groups(get_disability_rate(df_base)))
+    art.write('cause.all_causes.mortality',
+              check_age_groups(get_mortality_rate(df_base)))
 
     # Identify the chronic and acute diseases for which we have data.
     chr_suffix = '_f'
@@ -729,35 +765,41 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
     acute_diseases = [c.replace(acu_suffix, '') for c in df_dis.columns
                       if c.endswith(acu_suffix)]
 
-    index_cols = ['year_start', 'year_end', 'age', 'sex']
-    index_cols = ['year', 'year_start', 'year_end',
-                  'age', 'age_group_start', 'age_group_end',
+    index_cols = ['year_start', 'year_end',
+                  'age_group_start', 'age_group_end',
                   'sex']
 
     for disease in chronic_diseases:
         inc = '{}_i'.format(disease)
         art.write('chronic_disease.{}.incidence'.format(disease),
-                  df_dis.loc[:, index_cols + [inc]])
+                  df_dis.reindex(columns=index_cols + [inc]))
+                  # df_dis.loc[:, index_cols + [inc]])
         rem = '{}_r'.format(disease)
         art.write('chronic_disease.{}.remission'.format(disease),
-                  df_dis.loc[:, index_cols + [rem]])
+                  # df_dis.loc[:, index_cols + [rem]])
+                  df_dis.reindex(columns=index_cols + [rem]))
         cfr = '{}_f'.format(disease)
         art.write('chronic_disease.{}.mortality'.format(disease),
-                  df_dis.loc[:, index_cols + [cfr]])
+                  # df_dis.loc[:, index_cols + [cfr]])
+                  df_dis.reindex(columns=index_cols + [cfr]))
         mbd = '{}_DR'.format(disease)
         art.write('chronic_disease.{}.morbidity'.format(disease),
-                  df_dis.loc[:, index_cols + [mbd]])
+                  # df_dis.loc[:, index_cols + [mbd]])
+                  df_dis.reindex(columns=index_cols + [mbd]))
         prv = '{}_prev'.format(disease)
         art.write('chronic_disease.{}.prevalence'.format(disease),
-                  df_dis.loc[:, index_cols + [prv]])
+                  # df_dis.loc[:, index_cols + [prv]])
+                  df_dis.reindex(columns=index_cols + [prv]))
 
     for disease in acute_diseases:
         emr = '{}_excess_mortality'.format(disease)
         art.write('acute_disease.{}.mortality'.format(disease),
-                  df_dis.loc[:, index_cols + [emr]])
+                  # df_dis.loc[:, index_cols + [emr]])
+                  df_dis.reindex(columns=index_cols + [emr]))
         mbd = '{}_disability_rate'.format(disease)
         art.write('acute_disease.{}.morbidity'.format(disease),
-                  df_dis.loc[:, index_cols + [mbd]])
+                  # df_dis.loc[:, index_cols + [mbd]])
+                  df_dis.reindex(columns=index_cols + [mbd]))
 
     for exposure in ['tobacco']:
         incidence = df_tob.loc[:, index_cols + ['incidence']]
@@ -804,7 +846,7 @@ def always_use_initial_rates(data):
         tables.append(df.copy())
     data = pd.concat(tables)
 
-    data = data.sort_values(['year_start', 'age', 'sex']).reset_index(drop=True)
+    data = data.sort_values(['year_start', 'sex', 'age_group_start']).reset_index(drop=True)
     return data
 
 
