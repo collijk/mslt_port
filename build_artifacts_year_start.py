@@ -217,7 +217,7 @@ def get_base_disease_data(data_dir, year_start):
 
     # Create the base disease table.
     out = pd.DataFrame(data={'year_start': year_start,
-                             'year_end': year_start + 110,
+                             'year_end': year_start + 1,
                              'age_group_start': age, 'sex': sex})
     out['age_group_start'] = out['age_group_start'].astype(int)
     out['age_group_end'] = out['age_group_start'] + 1
