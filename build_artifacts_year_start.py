@@ -120,8 +120,9 @@ def get_population(df_base):
 
     :param df_base: The base population data.
     """
-    df = df_base.reindex(columns=['age_group_start', 'age_group_end',
+    df = df_base.reindex(columns=['age_group_start',
                                   'sex', 'population', 'bau_population'])
+    df = df.rename(columns={'age_group_start': 'age'})
     return df
 
 
@@ -750,8 +751,7 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
                        & (df_mortality['age_group_start'] == 0)])
 
     # Store the basic population data.
-    art.write('population.structure',
-              check_age_groups(get_population(df_base)))
+    art.write('population.structure', get_population(df_base))
     art.write('cause.all_causes.disability_rate',
               check_age_groups(get_disability_rate(df_base)))
     art.write('cause.all_causes.mortality',
