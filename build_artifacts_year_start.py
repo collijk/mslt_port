@@ -746,10 +746,6 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
     df_tob_rr_m = check_age_groups(df_tob_rr_m)
     df_tob_rr_d = check_age_groups(df_tob_rr_d)
 
-    df_mortality = check_age_groups(get_mortality_rate(df_base))
-    print(df_mortality[(df_mortality['sex'] == 'female')
-                       & (df_mortality['age_group_start'] == 0)])
-
     # Store the basic population data.
     art.write('population.structure', get_population(df_base))
     art.write('cause.all_causes.disability_rate',
