@@ -47,7 +47,10 @@ def main(args=None):
     stats_file = opts.stats_file
     stats = Stats(stats_file)
     stats.sort_stats(*opts.sortby)
-    stats.print_stats(*opts.match)
+    try:
+        stats.print_stats(*opts.match)
+    except BrokenPipeError:
+        pass
     return 0
 
 
