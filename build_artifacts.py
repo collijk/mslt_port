@@ -587,7 +587,7 @@ def get_tobacco_diseases_rr(data_dir, df_tob):
                 no_col = '{}_no'.format(dis_name)
                 yes_col = '{}_yes'.format(dis_name)
                 out[no_col] = 1.0
-                out[yes_col] = df.iloc[:, ix]
+                out[yes_col] = dis_df.iloc[:, ix]
             continue
 
         # NOTE: correct a typographic error in the input file.
@@ -601,7 +601,7 @@ def get_tobacco_diseases_rr(data_dir, df_tob):
                     for c in dis_cols]
         col_names = ['{}_{}'.format(disease, c) for c in dis_cols]
         for ix, col_name in enumerate(col_names):
-            out[col_name] = df.iloc[:, ix]
+            out[col_name] = dis_df.iloc[:, ix]
 
     tables = []
     for year in range(year_start, year_end + 1):
