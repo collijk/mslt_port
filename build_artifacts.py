@@ -372,14 +372,14 @@ def get_diseases(data_dir, year_start, apc_num_years=15):
     modify_rates = [c for c in df_apc.columns.values
                     if c in df_dis.columns.values
                     and c not in ['year', 'age', 'sex']]
-    scale_by = 1.0 + df_apc.loc[:, modify_rates].values / 100
+    base_rates = df_dis.loc[:, modify_rates].copy()
 
-    tables = [df_dis.copy()]
-    for counter, year in enumerate(range(year_start, year_end)):
+    tables = []
+    for counter, year in enumerate(range(year_start, year_end + 1)):
         if counter < apc_num_years:
-            # Apply the annual percent change to each rate.
-            df_dis.loc[:, modify_rates] *= scale_by
-        df_dis['year'] = year + 1
+            scale = np.exp(df_apc.loc[:, modify_rates].values * (year - year_start))
+            df_dis.loc[:, modify_rates] = base_rates.values * scale
+        df_dis['year'] = year
         tables.append(df_dis.copy())
 
     df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
