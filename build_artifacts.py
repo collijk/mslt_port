@@ -149,7 +149,7 @@ def get_disability_rate(df_base):
     return df
 
 
-def get_mortality_rate(df_base):
+def get_mortality_rate(df_base, apc_num_years=15):
     """
     Return the mortality rate for each strata.
 
@@ -162,16 +162,27 @@ def get_mortality_rate(df_base):
         raise ValueError('Invalid starting year: {}'.format(year_start))
     year_end = year_start + df_base['age'].max() - df_base['age'].min()
 
+    # NOTE: see column IG in ErsatzInput.
+    # - Each cohort has a separate APC (column FE)
+    # - ACMR = BASE_ACMR * e^(APC * (year - 2011))
     df_apc = get_acmr_apc(df_base, year_start)
     df_acmr = df_base[['year', 'age', 'sex', 'mortality_rate']]
     df_acmr = df_acmr.rename(columns={'mortality_rate': 'rate'})
+    base_acmr = df_acmr['rate'].copy()
 
-    tables = [df_acmr.copy()]
-    for year in range(year_start, year_end):
-        year_apc = df_apc[df_apc.year == year]
-        scale = (1 + year_apc['value'].values / 100)
-        df_acmr['rate'] = df_acmr['rate'].values * scale
-        df_acmr['year'] = year + 1
+    tables = []
+    for counter, year in enumerate(range(year_start, year_end + 1)):
+        if counter <= apc_num_years:
+            year_apc = df_apc[df_apc.year == year]
+            apc = year_apc['value'].values
+            scale = np.exp(apc * (year - year_start))
+            df_acmr.loc[:, 'rate'] = base_acmr * scale
+        else:
+            # NOTE: use the same scale for this cohort as per the previous
+            # year; shift by 2 because there are male and female cohorts.
+            scale[2:] = scale[:-2]
+            df_acmr.loc[:, 'rate'] = base_acmr * scale
+        df_acmr['year'] = year
         tables.append(df_acmr.copy())
 
     df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
