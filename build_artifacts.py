@@ -48,8 +48,8 @@ def build_population_artifacts(data_dir, artifact_prefix, year_start):
     # Load all of the input data.
     df_base = get_base_population_data(data_dir, year_start)
     df_dis = get_diseases(data_dir, year_start)
-    df_tob = get_tobacco_rates(data_dir, year_start)
-    df_tob_prev = get_tobacco_prevalence(data_dir, df_tob)
+    df_tob_prev = get_tobacco_prevalence(data_dir, year_start)
+    df_tob = get_tobacco_rates(data_dir, year_start, df_tob_prev)
     df_tob_rr_m = get_tobacco_mortality_rr(data_dir, df_tob)
     df_tob_rr_d = get_tobacco_diseases_rr(data_dir, df_tob)
 
@@ -404,7 +404,7 @@ def get_tobacco_rates_apc(data_dir):
     df = df.rename(columns={apc_col: 'incidence'})
     return df
 
-def get_tobacco_rates(data_dir, year_start):
+def get_tobacco_rates(data_dir, year_start, df_tob_prev):
     """
     Return the incidence and remission rates for tobacco use in all years of
     the simulation.
@@ -417,25 +417,29 @@ def get_tobacco_rates(data_dir, year_start):
 
     year_end = year_start + df['age'].max() - df['age'].min()
 
+    # The incidence rate is calculated with respect to the initial prevalence
+    # of new smokers (i.e., those aged 20).
+    initial_prev = df_tob_prev.loc[df_tob_prev['age'] == 20]
+    initial_prev = initial_prev.rename(columns={'tobacco.yes': 'prevalence'})
+    df_apc = df_apc.merge(initial_prev[['sex', 'prevalence']])
+
     apc_tables = []
     for age in range(df['age'].min(), df['age'].max() + 1):
         df_apc['age'] = age
         apc_tables.append(df_apc.copy())
     df_apc = pd.concat(apc_tables).sort_values(['age', 'sex'])
+    # NOTE: only retain non-zero values for age 20.
+    # There is probably a better way to do this.
+    df_apc.loc[df_apc['age'] != 20, ['incidence', 'prevalence']] = 0.0
     df_apc = df_apc.reset_index(drop=True)
 
-    # Determine which rates are affected by an annual percent change, and
-    # calculate the scaling factor for each of these rates.
-    modify_rates = [c for c in df_apc.columns.values
-                    if c in df.columns.values
-                    and c not in ['year', 'age', 'sex']]
-    scale_by = 1.0 + df_apc.loc[:, modify_rates].values / 100
+    prev = df_apc.loc[:, 'prevalence'].values
+    frac = (1 - df_apc.loc[:, 'incidence'].values)
 
-    tables = [df.copy()]
-    for year in range(year_start, year_end):
-        # Apply the annual percent change to each rate.
-        df.loc[:, modify_rates] *= scale_by
-        df['year'] = year + 1
+    tables = []
+    for year in range(year_start, year_end + 1):
+        df.loc[:, 'incidence'] = prev * (frac ** (year - year_start))
+        df['year'] = year
         tables.append(df.copy())
 
     df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
@@ -600,20 +604,13 @@ def get_tobacco_diseases_rr(data_dir, df_tob):
     return out
 
 
-def get_tobacco_prevalence(data_dir, df_tob):
+def get_tobacco_prevalence(data_dir, year_start):
     """
     Return the initial prevalence of tobacco use.
 
     :param data_dir: The directory containing the input data files.
     :param df_tob: The tobacco rates for each year of the simulation.
     """
-    year_start = df_tob['year'].min()
-    year_end = year_start + df_tob['age'].max() - df_tob['age'].min()
-    if year_end != df_tob['year'].max():
-        year_exp = df_tob['year'].max()
-        raise ValueError('Invalid final year, {} != {}'.format(year_end,
-                                                               year_exp))
-
     data_path = str(pathlib.Path(f'{data_dir}/tobacco_prevalence.csv')
                     .resolve())
     df = pd.read_csv(data_path).fillna(0.0)
@@ -637,12 +634,6 @@ def get_tobacco_prevalence(data_dir, df_tob):
     df = df.drop(columns='tobacco.post')
 
     df.insert(0, 'year', year_start)
-    tables = []
-    for year in range(year_start, year_end + 1):
-        df['year'] = year
-        tables.append(df.copy())
-
-    df = pd.concat(tables)
     df = df.sort_values(by=['year', 'age', 'sex']).reset_index(drop=True)
 
     # Check that each row sums to unity.
