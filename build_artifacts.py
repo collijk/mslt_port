@@ -434,6 +434,13 @@ def get_tobacco_rates(data_dir, year_start, df_tob_prev):
     initial_prev = initial_prev.rename(columns={'tobacco.yes': 'prevalence'})
     df_apc = df_apc.merge(initial_prev[['sex', 'prevalence']])
 
+    # Set the initial prevalence in 20-year-old cohorts to zero, so that
+    # tobacco interventions can have an immediate effect in 2011.
+    # Note that this will not affect the 'prevalence' column of df_apc.
+    mask = df_tob_prev['age'] == 20
+    df_tob_prev.loc[mask, 'tobacco.no'] += df_tob_prev.loc[mask, 'tobacco.yes']
+    df_tob_prev.loc[mask, 'tobacco.yes'] = 0.0
+
     apc_tables = []
     for age in range(df['age'].min(), df['age'].max() + 1):
         df_apc['age'] = age
