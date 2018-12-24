@@ -144,8 +144,24 @@ def get_disability_rate(df_base):
 
     :param df_base: The base population data.
     """
+    year_start = df_base['year'].unique()
+    if len(year_start) == 1:
+        year_start = year_start[0]
+    else:
+        raise ValueError('Invalid starting year: {}'.format(year_start))
+    year_end = year_start + df_base['age'].max() - df_base['age'].min()
+
     df = df_base[['age', 'sex', 'disability_rate']]
     df = df.rename(columns={'disability_rate': 'rate'})
+
+    tables = []
+    for year in range(year_start, year_end + 1):
+        df['year'] = year
+        tables.append(df.copy())
+
+    df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
+    df = df.reset_index(drop=True)
+
     return df
 
 
