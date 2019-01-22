@@ -39,7 +39,7 @@ def main(args=None):
                     template_args = {
                         'basename': basename,
                         'population': population,
-                        'bau': bau_label,
+                        'constant_prevalence': bau_label == 'const',
                         'delay': delay,
                         'intervention_class': interv_class,
                     }
