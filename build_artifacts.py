@@ -825,10 +825,6 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
     for exposure in ['tobacco']:
         incidence = df_tob.loc[:, ['year', 'age', 'sex', 'incidence']]
         remission = df_tob.loc[:, ['year', 'age', 'sex', 'remission']]
-        if const_bau:
-            # Use the initial incidence and remission rates in future years.
-            incidence = always_use_initial_rates(incidence)
-            remission = always_use_initial_rates(remission)
         write_table(art, 'risk_factor.{}.incidence'.format(exposure),
                     incidence, bin_edges=bin_edges)
         write_table(art, 'risk_factor.{}.remission'.format(exposure),
