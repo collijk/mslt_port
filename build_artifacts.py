@@ -5,6 +5,7 @@ This script processes the various input data files for the tobacco model and
 constructs the data artifacts required for each of the model simulations.
 """
 
+import argparse
 import os
 import os.path
 import pathlib
@@ -17,33 +18,55 @@ from vivarium_public_health.dataset_manager import hdf
 from vivarium_public_health.dataset_manager.artifact import Artifact
 
 
+def parser():
+    p = argparse.ArgumentParser()
+    p.add_argument('--bin-edges', action='store_true',
+                   help='Index data tables by age and year intervals')
+    p.add_argument('--data-dir', default='./data', metavar='DIR',
+                   help='The directory containing the input data files')
+    p.add_argument('--output-dir', default='.', metavar='DIR',
+                   help='The destination directory for the output files')
+    p.add_argument('--start-year', default=2011, type=int, metavar='YEAR',
+                   help='The first year of the simulation')
+
+    return p
+
 
 def main(args=None):
     """
     Construct the data artifacts requires for the tobacco simulations.
     """
 
-    # The location of the input data files.
-    data_root_dir = './data'
+    p = parser()
+    args = p.parse_args(args)
 
+    # The location of the input data files.
+    data_root_dir = args.data_dir
+    # The output directory.
+    out_dir = args.output_dir
     # The first year of the simulation.
-    year_start = 2011
+    year_start = args.start_year
+    # Whether to index age and years by single values (False) or by intervals
+    # (True); newer versions of Vivarium require the use of intervals.
+    bin_edges = args.bin_edges
 
     # Generate artifacts for the Maori and non-Maori populations.
     populations = ['non-maori', 'maori']
     for population in populations:
         data_dir = '{}/{}'.format(data_root_dir, population)
         artifact_prefix = 'tobacco_data_{}'.format(population)
-        build_population_artifacts(data_dir, artifact_prefix, year_start)
+        build_population_artifacts(data_dir, out_dir, artifact_prefix, year_start, bin_edges)
 
 
-def build_population_artifacts(data_dir, artifact_prefix, year_start):
+def build_population_artifacts(data_dir, out_dir, artifact_prefix, year_start, bin_edges):
     """
     Build a set of artifacts for a specific population.
 
     :param data_dir: The directory containing the input data files.
+    :param out_dir: The destination directory for the artifact files.
     :param artifact_prefix: The prefix for artifact file names.
     :param year_start: The first year of the simulation.
+    :param bin_edges: Whether to index age and year bins as intervals.
     """
     # Load all of the input data.
     df_base = get_base_population_data(data_dir, year_start)
@@ -61,9 +84,11 @@ def build_population_artifacts(data_dir, artifact_prefix, year_start):
     for const_bau, const_lbl in bau_label.items():
         for zero_delay, zero_lbl in delay_label.items():
             artifact_file = artifact_pattern.format(const_lbl, zero_lbl)
+            artifact_file = os.path.join(out_dir, artifact_file)
             build_artifact(artifact_file, df_base, df_dis,
                            df_tob, df_tob_prev, df_tob_rr_m, df_tob_rr_d,
-                           const_bau=const_bau, zero_delay=zero_delay)
+                           const_bau=const_bau, zero_delay=zero_delay,
+                           bin_edges=bin_edges)
 
     return 0
 
@@ -112,7 +137,7 @@ def get_population(df_base):
 
     :param df_base: The base population data.
     """
-    df = df_base[['age', 'sex', 'population', 'bau_population']]
+    df = df_base[['year', 'age', 'sex', 'population', 'bau_population']]
     return df
 
 
@@ -682,9 +707,48 @@ def get_tobacco_prevalence(data_dir, year_start):
     return df
 
 
+def define_bin_edges(df):
+    """
+    Define the lower (inclusive) and upper (exclusive) bounds for the 'age'
+    and 'year' columns.
+    """
+
+    df = df.rename(columns={
+        'age': 'age_group_start',
+        'year': 'year_start',
+    })
+
+    if 'age_group_start' in df.columns:
+        df.insert(df.columns.get_loc('age_group_start') + 1,
+                  'age_group_end',
+                  df['age_group_start'] + 1)
+
+    if 'year_start' in df.columns:
+        df.insert(df.columns.get_loc('year_start') + 1,
+                  'year_end',
+                  df['year_start'] + 1)
+
+    return df
+
+
+def write_table(artifact, path, df, bin_edges=False, verbose=False):
+    """
+    Add a data table to an existing artifact.
+    """
+    if bin_edges:
+        df = define_bin_edges(df)
+    if verbose and False:
+        print('{} has columns {}'.format(path, df.columns.values))
+        print('Year range: {} to {}'.format(df['year_start'].min(),
+                                            df['year_start'].max()))
+        print('Age range: {} to {}'.format(df['age_group_start'].min(),
+                                           df['age_group_start'].max()))
+    artifact.write(path, df)
+
+
 def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
                    df_tob_rr_m, df_tob_rr_d,
-                   const_bau=False, zero_delay=False):
+                   const_bau=False, zero_delay=False, bin_edges=False):
     """
     Build a data artifact.
 
@@ -701,6 +765,7 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
         for tobacco use in all years of the simulation.
     :param zero_delay: Whether past smokers immediately receive the complete
         benefits of no longer using tobacco.
+    :param bin_edges: Whether to index age and year bins as intervals.
     """
     if os.path.exists(artifact_file):
         os.remove(artifact_file)
@@ -710,9 +775,12 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
     art = Artifact(artifact_file)
 
     # Store the basic population data.
-    art.write('population.structure', get_population(df_base))
-    art.write('cause.all_causes.disability_rate', get_disability_rate(df_base))
-    art.write('cause.all_causes.mortality', get_mortality_rate(df_base))
+    write_table(art, 'population.structure',
+                get_population(df_base), bin_edges=bin_edges)
+    write_table(art, 'cause.all_causes.disability_rate',
+                get_disability_rate(df_base), bin_edges=bin_edges)
+    write_table(art, 'cause.all_causes.mortality',
+                get_mortality_rate(df_base), bin_edges=bin_edges)
 
     # Identify the chronic and acute diseases for which we have data.
     chr_suffix = '_f'
@@ -724,28 +792,35 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
 
     for disease in chronic_diseases:
         inc = '{}_i'.format(disease)
-        art.write('chronic_disease.{}.incidence'.format(disease),
-                  df_dis.loc[:, ['year', 'age', 'sex', inc]])
+        write_table(art, 'chronic_disease.{}.incidence'.format(disease),
+                    df_dis.loc[:, ['year', 'age', 'sex', inc]],
+                    bin_edges=bin_edges)
         rem = '{}_r'.format(disease)
-        art.write('chronic_disease.{}.remission'.format(disease),
-                  df_dis.loc[:, ['year', 'age', 'sex', rem]])
+        write_table(art, 'chronic_disease.{}.remission'.format(disease),
+                    df_dis.loc[:, ['year', 'age', 'sex', rem]],
+                    bin_edges=bin_edges)
         cfr = '{}_f'.format(disease)
-        art.write('chronic_disease.{}.mortality'.format(disease),
-                  df_dis.loc[:, ['year', 'age', 'sex', cfr]])
+        write_table(art, 'chronic_disease.{}.mortality'.format(disease),
+                    df_dis.loc[:, ['year', 'age', 'sex', cfr]],
+                    bin_edges=bin_edges)
         mbd = '{}_DR'.format(disease)
-        art.write('chronic_disease.{}.morbidity'.format(disease),
-                  df_dis.loc[:, ['year', 'age', 'sex', mbd]])
+        write_table(art, 'chronic_disease.{}.morbidity'.format(disease),
+                    df_dis.loc[:, ['year', 'age', 'sex', mbd]],
+                    bin_edges=bin_edges)
         prv = '{}_prev'.format(disease)
-        art.write('chronic_disease.{}.prevalence'.format(disease),
-                  df_dis.loc[:, ['year', 'age', 'sex', prv]])
+        write_table(art, 'chronic_disease.{}.prevalence'.format(disease),
+                    df_dis.loc[:, ['year', 'age', 'sex', prv]],
+                    bin_edges=bin_edges)
 
     for disease in acute_diseases:
         emr = '{}_excess_mortality'.format(disease)
-        art.write('acute_disease.{}.mortality'.format(disease),
-                  df_dis.loc[:, ['year', 'age', 'sex', emr]])
+        write_table(art, 'acute_disease.{}.mortality'.format(disease),
+                    df_dis.loc[:, ['year', 'age', 'sex', emr]],
+                    bin_edges=bin_edges)
         mbd = '{}_disability_rate'.format(disease)
-        art.write('acute_disease.{}.morbidity'.format(disease),
-                  df_dis.loc[:, ['year', 'age', 'sex', mbd]])
+        write_table(art, 'acute_disease.{}.morbidity'.format(disease),
+                    df_dis.loc[:, ['year', 'age', 'sex', mbd]],
+                    bin_edges=bin_edges)
 
     for exposure in ['tobacco']:
         incidence = df_tob.loc[:, ['year', 'age', 'sex', 'incidence']]
@@ -754,23 +829,33 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
             # Use the initial incidence and remission rates in future years.
             incidence = always_use_initial_rates(incidence)
             remission = always_use_initial_rates(remission)
-        art.write('risk_factor.{}.incidence'.format(exposure), incidence)
-        art.write('risk_factor.{}.remission'.format(exposure), remission)
+        write_table(art, 'risk_factor.{}.incidence'.format(exposure),
+                    incidence, bin_edges=bin_edges)
+        write_table(art, 'risk_factor.{}.remission'.format(exposure),
+                    remission, bin_edges=bin_edges)
 
         if zero_delay:
             # Instantly revert to a relative risk of 1.0.
             df_tob_rr_m = update_mortality_rr(df_tob_rr_m, exposure,
                                               years_to_baseline=0)
-        art.write('risk_factor.{}.mortality_relative_risk'.format(exposure),
-                  df_tob_rr_m)
+        write_table(art,
+                    'risk_factor.{}.mortality_relative_risk'.format(exposure),
+                    df_tob_rr_m, bin_edges=bin_edges)
 
         if zero_delay:
             # Instantly revert to a relative risk of 1.0.
             df_tob_rr_d = update_disease_rr(df_tob_rr_d, years_to_baseline=0)
-        art.write('risk_factor.{}.disease_relative_risk'.format(exposure),
-                  df_tob_rr_d)
+        write_table(art,
+                    'risk_factor.{}.disease_relative_risk'.format(exposure),
+                    df_tob_rr_d, bin_edges=bin_edges,
+                    verbose=not zero_delay)
 
-        art.write('risk_factor.{}.prevalence'.format(exposure), df_tob_prev)
+        if zero_delay:
+            # Collapse all former-smokers into a single bin.
+            df_tob_prev = update_prevalence(df_tob_prev, exposure,
+                                            years_to_baseline=0)
+        write_table(art, 'risk_factor.{}.prevalence'.format(exposure),
+                    df_tob_prev, bin_edges=bin_edges)
 
     print(artifact_file)
 
@@ -792,6 +877,36 @@ def always_use_initial_rates(data):
     data = pd.concat(tables)
 
     data = data.sort_values(['year', 'age', 'sex']).reset_index(drop=True)
+    return data
+
+
+def update_prevalence(data, exposure, years_to_baseline=0):
+    """
+    Reduce the delay between remission and a relative risk of 1.0, collapsing
+    the prevalence in the final tunnel states.
+
+    :param data: The prevalence data.
+    :param exposure: The name of the exposure.
+    :param years_to_baseline: The number of years after which the relative
+        risk returns to unity.
+    """
+    all_columns = data.columns
+
+    prefix = '{}.'.format(exposure)
+    suffixes = ['no', 'yes'] + [str(y) for y in range(years_to_baseline + 1)]
+
+    prev_cols = [prefix + suffix for suffix in suffixes]
+    idx_cols = [c for c in all_columns if not c.startswith(exposure)]
+
+    want_cols = idx_cols + prev_cols
+    keep_cols = [c for c in all_columns if c in want_cols]
+    data = data.loc[:, keep_cols]
+
+    # Ensure that each row sums to unity.
+    final_col = prefix + str(years_to_baseline)
+    other_prev_cols = [c for c in prev_cols if c != final_col]
+    data.loc[:, final_col] = 1.0 - data.loc[:, other_prev_cols].sum(axis=1)
+
     return data
 
 
