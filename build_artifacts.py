@@ -78,17 +78,16 @@ def build_population_artifacts(data_dir, out_dir, artifact_prefix, year_start, b
 
     # Build all of the required artifacts.
     artifact_pattern = artifact_prefix + '_{}_{}.hdf'
-    bau_label = {True: 'const', False: 'decr'}
+    bau_label = ['decr']
     delay_label = {True: '0yrs', False: '20yrs'}
 
-    for const_bau, const_lbl in bau_label.items():
+    for const_lbl in bau_label:
         for zero_delay, zero_lbl in delay_label.items():
             artifact_file = artifact_pattern.format(const_lbl, zero_lbl)
             artifact_file = os.path.join(out_dir, artifact_file)
             build_artifact(artifact_file, df_base, df_dis,
                            df_tob, df_tob_prev, df_tob_rr_m, df_tob_rr_d,
-                           const_bau=const_bau, zero_delay=zero_delay,
-                           bin_edges=bin_edges)
+                           zero_delay=zero_delay, bin_edges=bin_edges)
 
     return 0
 
@@ -748,7 +747,7 @@ def write_table(artifact, path, df, bin_edges=False, verbose=False):
 
 def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
                    df_tob_rr_m, df_tob_rr_d,
-                   const_bau=False, zero_delay=False, bin_edges=False):
+                   zero_delay=False, bin_edges=False):
     """
     Build a data artifact.
 
@@ -761,8 +760,6 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
         use.
     :param df_tob_rr_d: The relative risk of diseases associated with tobacco
         use.
-    :param const_bau: Whether to use the initial incidence and remission rates
-        for tobacco use in all years of the simulation.
     :param zero_delay: Whether past smokers immediately receive the complete
         benefits of no longer using tobacco.
     :param bin_edges: Whether to index age and year bins as intervals.
