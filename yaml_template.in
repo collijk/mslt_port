@@ -37,8 +37,10 @@ components:
                 - MorbidityMortality('{{ basename }}_mm.csv')
                 - Disease('CHD', '{{ basename }}_chd.csv')
     mslt_port:
+        {% if intervention_class is defined %}
         intervention:
             - {{ intervention_class }}()
+        {% endif %}
         observer:
             - TobaccoPrevalence('{{ basename }}_tobacco.csv')
 
@@ -55,6 +57,7 @@ configuration:
         step_size: 365  # In days
     tobacco:
         constant_prevalence: {{ constant_prevalence }}
+        tobacco_tax: {{ tobacco_tax }}
         delay: {{ delay }}
         affects:
             # This is where the affected diseases should be listed.

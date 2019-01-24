@@ -19,7 +19,9 @@ def main(args=None):
     with open(template_file, 'r') as f:
         template_contents = f.read()
 
-    template = jinja2.Template(template_contents)
+    template = jinja2.Template(template_contents,
+                               trim_blocks=True,
+                               lstrip_blocks=True)
 
     out_format = 'exp_{}_bau-{}_delay-{}_{}.yaml'
 
@@ -27,7 +29,8 @@ def main(args=None):
     bau_labels = ['const', 'decr']
     delay_labels = {0: '0yrs', 20: '20yrs'}
     intervention = {'erad': 'TobaccoEradication',
-                    'tfg': 'TobaccoFreeGeneration'}
+                    'tfg': 'TobaccoFreeGeneration',
+                    'tax': None}
 
     for population in populations:
         for bau_label in bau_labels:
@@ -42,7 +45,10 @@ def main(args=None):
                         'constant_prevalence': bau_label == 'const',
                         'delay': delay,
                         'intervention_class': interv_class,
+                        'tobacco_tax': interv_label == 'tax',
                     }
+                    if interv_class is None:
+                        del template_args['intervention_class']
                     out_content = template.render(template_args)
                     with open(out_file, 'w') as f:
                         f.write(out_content)

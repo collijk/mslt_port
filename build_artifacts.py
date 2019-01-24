@@ -75,6 +75,7 @@ def build_population_artifacts(data_dir, out_dir, artifact_prefix, year_start, b
     df_tob = get_tobacco_rates(data_dir, year_start, df_tob_prev)
     df_tob_rr_m = get_tobacco_mortality_rr(data_dir, df_tob)
     df_tob_rr_d = get_tobacco_diseases_rr(data_dir, df_tob)
+    df_tob_tax = get_tobacco_tax_effects(data_dir)
 
     # Build all of the required artifacts.
     artifact_pattern = artifact_prefix + '_{}_{}.hdf'
@@ -87,6 +88,7 @@ def build_population_artifacts(data_dir, out_dir, artifact_prefix, year_start, b
             artifact_file = os.path.join(out_dir, artifact_file)
             build_artifact(artifact_file, df_base, df_dis,
                            df_tob, df_tob_prev, df_tob_rr_m, df_tob_rr_d,
+                           df_tob_tax,
                            zero_delay=zero_delay, bin_edges=bin_edges)
 
     return 0
@@ -706,6 +708,41 @@ def get_tobacco_prevalence(data_dir, year_start):
     return df
 
 
+def get_tobacco_tax_effects(data_dir):
+    """
+    Calculate the effects of a tobacco tax on incidence and remission rates.
+    """
+    price_path = str(pathlib.Path(f'{data_dir}/tobacco_tax_price.csv')
+                     .resolve())
+    elast_path = str(pathlib.Path(f'{data_dir}/tobacco_tax_elasticity.csv')
+                    .resolve())
+    df_price = pd.read_csv(price_path)
+    df_elast = pd.read_csv(elast_path)
+
+    start_price = df_price.loc[0, 'price']
+    tables = []
+    for i, row in enumerate(df_price.itertuples()):
+        df_elast['year'] = row.year
+        df_elast['price'] = row.price
+        # Tax always has an effect on uptake.
+        df_elast['incidence_effect'] = np.exp(- df_elast['Elasticity']
+                                              * np.log(row.price / start_price))
+        # Only *tax increases* have an effect on cessation.
+        prev_price = row.price if i == 0 else df_price.loc[i - 1, 'price']
+        if row.price > prev_price:
+            df_elast['remission_effect'] = np.exp(- df_elast['Elasticity']
+                                                  * np.log(row.price / prev_price))
+        else:
+            df_elast['remission_effect'] = 1.0
+        tables.append(df_elast.copy())
+
+    df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
+    df = df.loc[:, ['year', 'age', 'sex', 'incidence_effect', 'remission_effect']]
+    df = df.reset_index(drop=True)
+
+    return df
+
+
 def define_bin_edges(df):
     """
     Define the lower (inclusive) and upper (exclusive) bounds for the 'age'
@@ -746,7 +783,7 @@ def write_table(artifact, path, df, bin_edges=False, verbose=False):
 
 
 def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
-                   df_tob_rr_m, df_tob_rr_d,
+                   df_tob_rr_m, df_tob_rr_d, df_tob_tax,
                    zero_delay=False, bin_edges=False):
     """
     Build a data artifact.
@@ -760,6 +797,7 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
         use.
     :param df_tob_rr_d: The relative risk of diseases associated with tobacco
         use.
+    :param df_tob_tax: The effects of a tobacco tax on uptake and cessation.
     :param zero_delay: Whether past smokers immediately receive the complete
         benefits of no longer using tobacco.
     :param bin_edges: Whether to index age and year bins as intervals.
@@ -849,6 +887,13 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
                                             years_to_baseline=0)
         write_table(art, 'risk_factor.{}.prevalence'.format(exposure),
                     df_tob_prev, bin_edges=bin_edges)
+
+        tax_inc = df_tob_tax[['year', 'age', 'sex', 'incidence_effect']]
+        tax_rem = df_tob_tax[['year', 'age', 'sex', 'remission_effect']]
+        write_table(art, 'risk_factor.{}.tax_effect_incidence'.format(exposure),
+                    tax_inc, bin_edges=bin_edges)
+        write_table(art, 'risk_factor.{}.tax_effect_remission'.format(exposure),
+                    tax_rem, bin_edges=bin_edges)
 
     print(artifact_file)
 

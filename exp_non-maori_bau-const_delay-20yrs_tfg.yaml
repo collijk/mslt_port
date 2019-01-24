@@ -55,6 +55,7 @@ configuration:
         step_size: 365  # In days
     tobacco:
         constant_prevalence: True
+        tobacco_tax: False
         delay: 20
         affects:
             # This is where the affected diseases should be listed.
