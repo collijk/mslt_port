@@ -1,0 +1,35 @@
+plugins:
+    optional:
+        data:
+            controller: "vivarium_public_health.dataset_manager.ArtifactManager"
+            builder_interface: "vivarium_public_health.dataset_manager.ArtifactManagerInterface"
+
+components:
+    vivarium_public_health:
+        mslt:
+            population:
+                - BasePopulation()
+                - Mortality()
+                - Disability()
+            disease:
+                - Disease('CHD')
+            intervention:
+                - ModifyDiseaseIncidence('reduce_chd', 'CHD')
+            observer:
+                - AdjustedPYandLE('tbl2_non-maori_reduce_chd_haly.csv')
+                - MorbidityMortality('tbl2_non-maori_reduce_chd_mm.csv')
+
+configuration:
+    input_data:
+        artifact_path: tobacco_data_non-maori_decr_20yrs.hdf
+    population:
+        population_size: 220 # Males and females, aged 0 to 109.
+    time:
+        start:
+            year: 2011
+        end:
+            year: 2120
+        step_size: 365  # In days
+    intervention:
+        reduce_chd:
+            CHD_incidence_scale: 0.95
