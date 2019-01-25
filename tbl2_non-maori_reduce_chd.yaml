@@ -18,6 +18,7 @@ components:
             observer:
                 - AdjustedPYandLE('tbl2_non-maori_reduce_chd_haly.csv')
                 - MorbidityMortality('tbl2_non-maori_reduce_chd_mm.csv')
+                - Disease('CHD', 'tbl2_non-maori_reduce_chd_chd.csv')
 
 configuration:
     input_data:
