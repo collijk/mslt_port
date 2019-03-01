@@ -98,6 +98,9 @@ print_LY_HALY_ACMR_YLD_table <- function(df) {
     prev_width <- getOption('width')
     options(width = 1e3)
 
+    ## Important: keep only every 5th cohort!
+    df <- df[df$year_of_birth %% 5 == 4, ]
+
     common_cols <- c('age', 'sex', 'year_of_birth',
                      'popn', 'bau', 'delay', 'interv')
 
