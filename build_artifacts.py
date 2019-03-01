@@ -213,6 +213,8 @@ def get_mortality_rate(df_base, apc_num_years=15):
     base_acmr = df_acmr['rate'].copy()
 
     tables = []
+    df_acmr['year'] = year_start - 1
+    tables.append(df_acmr.copy())
     for counter, year in enumerate(range(year_start, year_end + 1)):
         if counter <= apc_num_years:
             year_apc = df_apc[df_apc.year == year]
