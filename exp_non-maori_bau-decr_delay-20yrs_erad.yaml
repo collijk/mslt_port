@@ -32,15 +32,12 @@ components:
                 - Disease('ThyroidCancer')
                 - Disease('COPD')
                 - AcuteDisease('LRTI')
+            intervention:
+                - TobaccoEradication()
             observer:
-                - AdjustedPYandLE('exp_non-maori_bau-decr_delay-20yrs_erad_haly.csv')
                 - MorbidityMortality('exp_non-maori_bau-decr_delay-20yrs_erad_mm.csv')
                 - Disease('CHD', 'exp_non-maori_bau-decr_delay-20yrs_erad_chd.csv')
-    mslt_port:
-        intervention:
-            - TobaccoEradication()
-        observer:
-            - TobaccoPrevalence('exp_non-maori_bau-decr_delay-20yrs_erad_tobacco.csv')
+                - TobaccoPrevalence('exp_non-maori_bau-decr_delay-20yrs_erad_tobacco.csv')
 
 configuration:
     input_data:

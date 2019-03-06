@@ -33,12 +33,9 @@ components:
                 - Disease('COPD')
                 - AcuteDisease('LRTI')
             observer:
-                - AdjustedPYandLE('exp_non-maori_bau-decr_delay-0yrs_tax_haly.csv')
                 - MorbidityMortality('exp_non-maori_bau-decr_delay-0yrs_tax_mm.csv')
                 - Disease('CHD', 'exp_non-maori_bau-decr_delay-0yrs_tax_chd.csv')
-    mslt_port:
-        observer:
-            - TobaccoPrevalence('exp_non-maori_bau-decr_delay-0yrs_tax_tobacco.csv')
+                - TobaccoPrevalence('exp_non-maori_bau-decr_delay-0yrs_tax_tobacco.csv')
 
 configuration:
     input_data:
