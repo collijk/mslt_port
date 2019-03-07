@@ -111,15 +111,8 @@ def get_base_population_data(data_dir, year_start):
                             'APC in all-cause mortality': 'mortality_apc',
                             '5-year': 'population'})
 
-    # Apply 5-year population averages to each population strata.
-    age_bin_width = 5
-    df['bau_population'] = 0
-    for age_group in range(0, df['age'].max(), age_bin_width):
-        popn_avg_at = age_group + 2
-        avg_values = df.loc[df.age == popn_avg_at, 'population'].values
-        for age in range(age_group, age_group + age_bin_width):
-            df.loc[df.age == age, 'population'] = avg_values
-            df.loc[df.age == age, 'bau_population'] = avg_values
+    # Represent each 5-year cohort as a single stratum.
+    df['bau_population'] = df['population'].values
 
     # Retain only the necessary columns.
     df['year'] = year_start
@@ -138,7 +131,9 @@ def get_population(df_base):
 
     :param df_base: The base population data.
     """
-    df = df_base[['year', 'age', 'sex', 'population', 'bau_population']]
+    # Retain only those strata for whom the population size is defined.
+    df = df_base.loc[df_base['population'].notna(),
+                     ['year', 'age', 'sex', 'population', 'bau_population']]
     return df
 
 

@@ -24,7 +24,7 @@ configuration:
     input_data:
         artifact_path: tobacco_data_non-maori_decr_20yrs.hdf
     population:
-        population_size: 220 # Males and females, aged 0 to 109.
+        population_size: 44 # Male and female 5-year cohorts, aged 0 to 109.
     time:
         start:
             year: 2011
