@@ -16,7 +16,6 @@ components:
             intervention:
                 - ModifyAllCauseMortality('reduce_acmr')
             observer:
-                - AdjustedPYandLE('tbl2_non-maori_reduce_acmr_haly.csv')
                 - MorbidityMortality('tbl2_non-maori_reduce_acmr_mm.csv')
 
 configuration:
