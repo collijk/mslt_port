@@ -55,6 +55,8 @@ def main(args=None):
     for population in populations:
         data_dir = '{}/{}'.format(data_root_dir, population)
         artifact_prefix = 'tobacco_data_{}'.format(population)
+        if bin_edges:
+            artifact_prefix = 'tobacco_bin_data_{}'.format(population)
         build_population_artifacts(data_dir, out_dir, artifact_prefix, year_start, bin_edges)
 
 
@@ -808,7 +810,7 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
 
     # Store the basic population data.
     write_table(art, 'population.structure',
-                get_population(df_base), bin_edges=bin_edges)
+                get_population(df_base), bin_edges=False)
     write_table(art, 'cause.all_causes.disability_rate',
                 get_disability_rate(df_base), bin_edges=bin_edges)
     write_table(art, 'cause.all_causes.mortality',
