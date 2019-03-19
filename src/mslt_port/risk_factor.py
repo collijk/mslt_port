@@ -82,17 +82,99 @@ class Tobacco:
         self._prev = self.load_initial_tobacco_prevalence()
         self._tax = self.load_tobacco_tax_effects()
         self._mort_rr = self.load_tobacco_mortality_rr()
-        self._dis_rr_dict = self.load_tobacco_diseases_rr()
+        self._dis_rr_dict, self._dis_rr_df = self.load_tobacco_diseases_rr()
 
     status = """
       [x] 'risk_factor.{}.incidence' and sampling
       [x] 'risk_factor.{}.remission' and sampling
       [x] 'risk_factor.{}.prevalence'
-      [ ] 'risk_factor.{}.mortality_relative_risk' and sampling
-      [ ] 'risk_factor.{}.disease_relative_risk' and sampling
-      [ ] 'risk_factor.{}.tax_effect_incidence' and sampling
-      [ ] 'risk_factor.{}.tax_effect_remission' and sampling
+      [~] 'risk_factor.{}.mortality_relative_risk' and sampling
+      [~] 'risk_factor.{}.disease_relative_risk' and sampling
+      [~] 'risk_factor.{}.tax_effect_incidence' and sampling
+      [~] 'risk_factor.{}.tax_effect_remission' and sampling
     """
+
+    def sample_tax_effects(self):
+        # TODO
+        raise NotImplementedError()
+
+    def sample_disease_rr(self):
+        # TODO
+        raise NotImplementedError()
+
+    def sample_mortality_rr(self):
+        # TODO
+        raise NotImplementedError()
+
+    def get_expected_tax_effects(self):
+        """
+        Return the effects of a tobacco tax on incidence and remission rates.
+        """
+        df = self._tax.copy()
+
+        if np.any(df.isna()):
+            raise ValueError('NA values found in tobacco tax effects data')
+
+        return df
+
+    def get_expected_disease_rr(self, disease):
+        """
+        Return the relative risk of chronic disease incidence for each
+        exposure category, in all years of the simulation.
+
+        :param disease: The name of the disease; set to ``None`` to return a
+            single table for all diseases.
+        """
+        if disease is None:
+            df = self._dis_rr_df.copy()
+        else:
+            if disease not in self._dis_rr_dict:
+                msg = 'No relative risks for disease {}'.format(disease)
+                raise ValueError(msg)
+
+            df = self._dis_rr_dict[disease].copy()
+            df.insert(0, 'year', 0)
+
+        tables = []
+        for year in range(self._year_start, self._year_end + 1):
+            df['year'] = year
+            tables.append(df.copy())
+
+        df = pd.concat(tables)
+        df = df.sort_values(['year', 'age', 'sex']).reset_index(drop=True)
+
+        if np.any(df.isna()):
+            raise ValueError('NA values found in tobacco disease RR data')
+
+        return df
+
+    def get_expected_mortality_rr(self):
+        """
+        Return the relative risk of mortality for each exposure category, in
+        all years of the simulation.
+        """
+        df = self._mort_rr.copy()
+
+        # Copy the relative-risk columns so they apply to the intervention.
+        bau_prefix = 'tobacco.'
+        int_prefix = 'tobacco_intervention.'
+        for col in df.columns:
+            if col.startswith(bau_prefix):
+                int_col = col.replace(bau_prefix, int_prefix)
+                df[int_col] = df[col]
+
+        tables = []
+        for year in range(self._year_start, self._year_end + 1):
+            df['year'] = year
+            tables.append(df.copy())
+
+        df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
+        df = df.reset_index(drop=True)
+
+        if np.any(df.isna()):
+            raise ValueError('NA values found in tobacco mortality RR data')
+
+        return df
 
     def get_expected_prevalence(self):
         """Return the initial exposure prevalence."""
@@ -171,6 +253,9 @@ class Tobacco:
         df.insert(0, 'year', self._year_start)
         df = df.sort_values(by=['year', 'age', 'sex']).reset_index(drop=True)
 
+        if np.any(df.isna()):
+            raise ValueError('NA values found in initial tobacco rates data')
+
         return df
 
     def load_tobacco_rates_apc(self):
@@ -194,6 +279,9 @@ class Tobacco:
         df.loc[df['age'] != 20, 'incidence'] = 0.0
 
         df = df.sort_values(['age', 'sex']).reset_index(drop=True)
+
+        if np.any(df.isna()):
+            raise ValueError('NA values found in tobacco rates APC data')
 
         return df
 
@@ -224,6 +312,9 @@ class Tobacco:
 
         df.insert(0, 'year', self._year_start)
         df = df.sort_values(by=['year', 'age', 'sex']).reset_index(drop=True)
+
+        if np.any(df.isna()):
+            raise ValueError('NA values found in tobacco prevalence data')
 
         # Check that each row sums to unity.
         toln = 1e-12
@@ -265,6 +356,9 @@ class Tobacco:
         df = df.loc[:, ['year', 'age', 'sex',
                         'incidence_effect', 'remission_effect']]
         df = df.reset_index(drop=True)
+
+        if np.any(df.isna()):
+            raise ValueError('NA values found in tobacco tax effects data')
 
         return df
 
@@ -369,6 +463,9 @@ class Tobacco:
             col_names = ['{}_{}'.format(disease, c) for c in dis_cols]
 
             dis_df.columns = col_names
+            for ix, col_name in enumerate(col_names):
+                out[col_name] = dis_df.iloc[:, ix]
+
             dis_df.insert(0, 'sex', sex)
             dis_df.insert(0, 'age', age)
             dis_df = dis_df.sort_values(['age', 'sex']).reset_index(drop=True)
@@ -378,4 +475,6 @@ class Tobacco:
 
             diseases[disease] = dis_df
 
-        return diseases
+        out = out.sort_values(['age', 'sex']).reset_index(drop=True)
+
+        return (diseases, out)
