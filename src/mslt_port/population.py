@@ -98,7 +98,7 @@ class Population:
             if counter <= self._num_apc_years:
                 year_apc = df_apc[df_apc.year == year]
                 apc = year_apc['value'].values
-                scale = np.exp(apc * (year - year_start))
+                scale = np.exp(apc * (year - self.year_start))
                 df_acmr.loc[:, 'rate'] = base_acmr * scale
             else:
                 # NOTE: use the same scale for this cohort as per the previous

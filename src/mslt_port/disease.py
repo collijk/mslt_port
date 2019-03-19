@@ -219,7 +219,6 @@ class Acute:
         self._data = self._build_data_table(data)
         self._year_start = year_start
         self._year_end = year_end
-        print(self._data.head().to_string())
 
     def _build_data_table(self, data):
         data = data.rename(columns={
@@ -395,7 +394,7 @@ class Diseases:
         for ix, disease in enumerate(disease_names):
             if len(rate_types[ix]) > 0:
                 suffix = rate_suffix[rate_types[ix]]
-                rate_name = disease + suffix
-                out[rate_name] = [male_slope[ix], female_slope[ix]]
+            rate_name = disease + suffix
+            out[rate_name] = [male_slope[ix], female_slope[ix]]
 
         return out
