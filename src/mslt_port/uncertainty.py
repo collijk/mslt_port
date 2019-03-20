@@ -64,6 +64,71 @@ class Normal:
             return rv.ppf(samples[..., np.newaxis])
 
 
+class LogNormal:
+    """
+    Draw samples from a log-normal distribution, whose standard deviation is a
+    percentage of the mean.
+
+    :param sd_pcnt: The standard deviation, represented as a percentage of the
+        mean *of the underlying normal distribution*; valid values are between
+        ``0.1`` and ``20``.
+    """
+
+    _sd_min = 0.1
+    _sd_max = 20
+
+    def __init__(self, sd_pcnt):
+        if sd_pcnt < self._sd_min or sd_pcnt > self._sd_max:
+            raise ValueError('SD% of {} is not between {}% and {}%'.format(
+                sd_pcnt, self._sd_min, self._sd_max))
+        self.sd_frac = sd_pcnt / 100.0
+
+    def uncorrelated_samples(self, mean_values, num_samples, prng):
+        """
+        Draw **uncorrelated** values at random.
+
+        :param mean_values: The mean values.
+        :param num_samples: The number of samples to return.
+        :param prng: A ``numpy.random.RandomState`` instance.
+        :returns: An array of shape ``(n, v)`` for ``n`` samples and ``v``
+            mean values.
+        """
+        log_mean = np.log(mean_values.values)
+        log_sd = np.absolute(log_mean) * self.sd_frac
+        size = (num_samples, ) + log_mean.shape
+        # NOTE: RandomState.lognormal takes the mean and SD of the underlying
+        # normal distribution.
+        return prng.lognormal(mean=log_mean[np.newaxis, ...],
+                              sigma=log_sd[np.newaxis, ...],
+                              size=size)
+
+    def correlated_samples(self, mean_values, samples):
+        """
+        Draw **correlated** values according to the provided percentiles.
+
+        :param mean_values: The mean values.
+        :param samples: The percentiles.
+        :returns: An array of shape ``(n, v)`` for ``n`` percentile samples
+            and ``v`` mean values.
+        """
+        log_mean = np.log(mean_values.values)
+        log_sd = np.absolute(log_mean) * self.sd_frac
+        zero_mask = log_mean == 0.0
+        # NOTE: scipy.stats.lognorm takes the *exponential* mean, and the SD
+        # of the underlying normal distribution.
+        if np.any(zero_mask):
+            # Only draw samples where the SD is non-zero.
+            values = np.ones(samples.shape + log_mean.shape)
+            nonz_mask = ~ zero_mask
+            rv = st.lognorm(scale=mean_values.values[nonz_mask],
+                            s=log_sd[nonz_mask])
+            values[:, nonz_mask] = rv.ppf(samples[..., np.newaxis])
+            return values
+        else:
+            rv = st.lognorm(scale=mean_values.values, s=log_sd)
+            return rv.ppf(samples[..., np.newaxis])
+
+
 class Beta:
     """
     Draw samples from a Beta distribution, whose standard deviation is a
@@ -165,6 +230,22 @@ def test(num=10):
     samples = prng.random_sample(size=num)
     print('percentiles = {}'.format(samples))
     y = b.correlated_samples(x, samples)
+    print(y)
+    print()
+
+    sd_pcnt = 10
+    l = LogNormal(sd_pcnt)
+    print('LogNormal')
+
+    x = pd.Series([1.0, 1.1, 1.5, 5.0])
+    print('x = {}'.format(x.values))
+    y = l.uncorrelated_samples(x, num, prng)
+    print(y)
+    print()
+
+    samples = prng.random_sample(size=num)
+    print('percentiles = {}'.format(samples))
+    y = l.correlated_samples(x, samples)
     print(y)
     print()
 
