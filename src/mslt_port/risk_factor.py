@@ -88,22 +88,118 @@ class Tobacco:
       [x] 'risk_factor.{}.incidence' and sampling
       [x] 'risk_factor.{}.remission' and sampling
       [x] 'risk_factor.{}.prevalence'
-      [~] 'risk_factor.{}.mortality_relative_risk' and sampling
+      [x] 'risk_factor.{}.mortality_relative_risk'
       [~] 'risk_factor.{}.disease_relative_risk' and sampling
-      [~] 'risk_factor.{}.tax_effect_incidence' and sampling
-      [~] 'risk_factor.{}.tax_effect_remission' and sampling
+      [x] 'risk_factor.{}.tax_effect_incidence' and sampling
+      [x] 'risk_factor.{}.tax_effect_remission' and sampling
     """
 
-    def sample_tax_effects(self):
-        # TODO
-        raise NotImplementedError()
+    def sample_price_elasticity(self, prng, elast_dist, n):
+        """
+        Sample the price elasticity and return the individual draws.
+
+        :param prng: The random number generator.
+        :param elast_dist: The sampling distribution.
+        :param n: The number of samples to draw.
+        """
+        df_elast = sample_column(self._df_elast, 'Elasticity',
+                                 prng, elast_dist, n)
+        return df_elast
+
+    def scale_price_elasticity(self, df_elast, mean_scale, prng, scale_dist):
+        """
+        Scale the price elasticity by variable amounts.
+
+        :param df_elast: Baseline samples of the price elasticity.
+        :param mean_scale: The average scale to apply (e.g., 1.2).
+        :param prng: The random number generator.
+        :param scale_dist: The sampling distribution for ``mean_scale``.
+        """
+        elast_cols = [c for c in df_elast.columns
+                      if c.startswith('Elasticity_draw_')]
+        num_samples = len(elast_cols)
+
+        scale_samples = prng.random_sample(size=num_samples)
+        scales = scale_dist.correlated_samples(pd.Series(mean_scale),
+                                               scale_samples)
+        # Remember to define draw 0 as the expected value.
+        scales[0] = mean_scale
+
+        df_elast = df_elast.copy()
+        df_elast.loc[:, elast_cols] = (df_elast.loc[:, elast_cols].values
+                                       * scales.T)
+
+        return df_elast
+
+    def sample_tax_effects_from_elasticity(self, df_elast):
+        """
+        Calculate the effects of a tobacco tax on uptake and remission, given
+        a number of samples for the price elasticity.
+
+        :param df_elast: Samples of the price elasticity.
+        """
+        df_price = self._df_price
+        df_elast = df_elast.copy()
+        df_elast.insert(0, 'year', 0)
+
+        elast_cols = [c for c in df_elast.columns
+                      if c.startswith('Elasticity_draw_')]
+        inc_cols = ['incidence_effect_draw_{}'.format(i)
+                    for i in range(len(elast_cols))]
+        rem_cols = ['remission_effect_draw_{}'.format(i)
+                    for i in range(len(elast_cols))]
+
+        if np.any(df_elast.loc[:, elast_cols].isna()):
+            print('NA values in elast_cols')
+
+        df_tmp = pd.DataFrame(columns=inc_cols + rem_cols)
+        df_elast = df_elast.join(df_tmp)
+
+        # Loop over the price at each year, and determine the effects of price
+        # elasticity on uptake and cessation rates.
+        start_price = df_price.loc[0, 'price']
+        tables = []
+        for i, row in enumerate(df_price.itertuples()):
+            df_elast['year'] = row.year
+            df_elast['price'] = row.price
+
+            df_elast.loc[:, inc_cols] = np.exp(
+                - df_elast.loc[:, elast_cols].values
+                * np.log(row.price / start_price))
+
+            prev_price = row.price if i == 0 else df_price.loc[i - 1, 'price']
+            if row.price > prev_price:
+                df_elast.loc[:, rem_cols] = np.exp(
+                    - df_elast.loc[:, elast_cols].values
+                    * np.log(row.price / prev_price))
+            else:
+                df_elast.loc[:, rem_cols] = 1.0
+
+            tables.append(df_elast.copy())
+
+        df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
+        df = df.reset_index(drop=True)
+        df = df.loc[:, ['year', 'age', 'sex'] + inc_cols + rem_cols]
+
+        if np.any(df.isna()):
+            raise ValueError('NA values found in tobacco tax effects data')
+
+        return df
+
+    def sample_tax_effects(self, prng, elast_dist, n):
+        """
+        Sample the price elasticity and return the effects of a tobacco tax on
+        uptake and remission for each elasticity draw.
+        """
+        df_elast = self.sample_price_elasticity(prng, elast_dist, n)
+        return self.sample_tax_effects_from_elasticity(df_elast)
 
     def sample_disease_rr(self):
-        # TODO
-        raise NotImplementedError()
-
-    def sample_mortality_rr(self):
-        # TODO
+        # TODO: Sample the relative risk associated with current smokers, then
+        # recalculate the RRs for each tunnel state using equation (23) of
+        # Hoogenveen et al., Cost Eff Resour Alloc 6:1, 2008.
+        # NOTE: this equation includes *two* regression coefficients, which
+        # must be provided in a data file.
         raise NotImplementedError()
 
     def get_expected_tax_effects(self):
@@ -334,6 +430,11 @@ class Tobacco:
         elast_path = str(pathlib.Path(elast_file).resolve())
         df_price = pd.read_csv(price_path)
         df_elast = pd.read_csv(elast_path)
+
+        # Retain the tobacco prices and elasticities; they are needed in order
+        # to sample the uncertainty about tobacco tax effects.
+        self._df_price = df_price
+        self._df_elast = df_elast.copy()
 
         start_price = df_price.loc[0, 'price']
         tables = []
