@@ -208,6 +208,67 @@ class LogNormal:
             return rv.ppf(samples[..., np.newaxis])
 
 
+class LogNormalRawSD:
+    """
+    Draw samples from a log-normal distribution, where the standard deviation
+    is defined separately for each mean value.
+
+    :param log_sd: The standard deviation values.
+    """
+
+    def __init__(self, log_sd):
+        self._log_sd = log_sd
+
+    def uncorrelated_samples(self, mean_values, num_samples, prng):
+        """
+        Draw **uncorrelated** values at random.
+
+        :param mean_values: The mean values.
+        :param num_samples: The number of samples to return.
+        :param prng: A ``numpy.random.RandomState`` instance.
+        :returns: An array of shape ``(n, v)`` for ``n`` samples and ``v``
+            mean values.
+        """
+        log_sd = self._log_sd
+        if mean_values.shape != log_sd.shape:
+            raise ValueError('Mean and SD have different shapes')
+        log_mean = np.log(mean_values.values)
+        size = (num_samples, ) + log_mean.shape
+        # NOTE: RandomState.lognormal takes the mean and SD of the underlying
+        # normal distribution.
+        return prng.lognormal(mean=log_mean[np.newaxis, ...],
+                              sigma=log_sd[np.newaxis, ...],
+                              size=size)
+
+    def correlated_samples(self, mean_values, samples):
+        """
+        Draw **correlated** values according to the provided percentiles.
+
+        :param mean_values: The mean values.
+        :param samples: The percentiles.
+        :returns: An array of shape ``(n, v)`` for ``n`` percentile samples
+            and ``v`` mean values.
+        """
+        log_sd = self._log_sd
+        if mean_values.shape != log_sd.shape:
+            raise ValueError('Mean and SD have different shapes')
+        log_mean = np.log(mean_values.values)
+        zero_mask = log_mean == 0.0
+        # NOTE: scipy.stats.lognorm takes the *exponential* mean, and the SD
+        # of the underlying normal distribution.
+        if np.any(zero_mask):
+            # Only draw samples where the SD is non-zero.
+            values = np.ones(samples.shape + log_mean.shape)
+            nonz_mask = ~ zero_mask
+            rv = st.lognorm(scale=mean_values.values[nonz_mask],
+                            s=log_sd[nonz_mask])
+            values[:, nonz_mask] = rv.ppf(samples[..., np.newaxis])
+            return values
+        else:
+            rv = st.lognorm(scale=mean_values.values, s=log_sd)
+            return rv.ppf(samples[..., np.newaxis])
+
+
 class Beta:
     """
     Draw samples from a Beta distribution, whose standard deviation is a

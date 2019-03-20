@@ -5,6 +5,35 @@ import numpy as np
 import pathlib
 
 from .disease import sample_column
+from .uncertainty import LogNormalRawSD
+
+
+def post_cessation_rr(disease, rr_data, rr_cols, num_states, gamma):
+    # NOTE: this will preserve the condition that draw 0 is the mean.
+    tables = [rr_data]
+    for n in range(1, num_states):
+        rr_base = rr_data.loc[:, rr_cols].values
+        rr_n = 1 + (rr_base - 1) * np.exp(- gamma.values * n)[..., np.newaxis]
+        df_tmp = pd.DataFrame(rr_n)
+        # Name each draw appropriately.
+        col_names = ['{}_{}_draw_{}'.format(disease, n, ix)
+                     for ix in range(len(rr_cols))]
+        df_tmp.columns = col_names
+        tables.append(df_tmp)
+
+    # Add the RR = 1.0 for the final (absorbing) state.
+    df_tmp = pd.DataFrame(np.ones(rr_n.shape))
+    col_names = ['{}_{}_draw_{}'.format(disease, num_states, ix)
+                 for ix in range(len(rr_cols))]
+    df_tmp.columns = col_names
+    tables.append(df_tmp)
+
+    rr_data = pd.concat(tables, axis=1)
+
+    if np.any(rr_data.isna()):
+        raise ValueError('NA values in post-cessation RRs')
+
+    return rr_data
 
 
 def sample_tobacco_rate(year_start, year_end, data, rate_name, prev_data,
@@ -83,6 +112,8 @@ class Tobacco:
         self._tax = self.load_tobacco_tax_effects()
         self._mort_rr = self.load_tobacco_mortality_rr()
         self._dis_rr_dict, self._dis_rr_df = self.load_tobacco_diseases_rr()
+        self._df_gamma = self.load_tobacco_disease_rr_gamma()
+        self._df_dis_rr_sd = self.load_tobacco_disease_rr_sd()
 
     status = """
       [x] 'risk_factor.{}.incidence' and sampling
@@ -150,7 +181,7 @@ class Tobacco:
                     for i in range(len(elast_cols))]
 
         if np.any(df_elast.loc[:, elast_cols].isna()):
-            print('NA values in elast_cols')
+            raise ValueError('NA values in elast_cols')
 
         df_tmp = pd.DataFrame(columns=inc_cols + rem_cols)
         df_elast = df_elast.join(df_tmp)
@@ -190,17 +221,80 @@ class Tobacco:
         """
         Sample the price elasticity and return the effects of a tobacco tax on
         uptake and remission for each elasticity draw.
+
+        :param prng: The random number generator.
+        :param elast_dist: The sampling distribution.
+        :param n: The number of samples to draw.
         """
         df_elast = self.sample_price_elasticity(prng, elast_dist, n)
         return self.sample_tax_effects_from_elasticity(df_elast)
 
-    def sample_disease_rr(self):
-        # TODO: Sample the relative risk associated with current smokers, then
-        # recalculate the RRs for each tunnel state using equation (23) of
-        # Hoogenveen et al., Cost Eff Resour Alloc 6:1, 2008.
-        # NOTE: this equation includes *two* regression coefficients, which
-        # must be provided in a data file.
-        raise NotImplementedError()
+    def sample_disease_rr(self, prng, n):
+        """
+        Sample the relative risk of chronic disease incidence for each
+        exposure category, in all years of the simulation.
+
+        Note that the sampling distribution for each disease is predefined.
+
+        :param prng: The random number generator.
+        :param n: The number of samples to draw.
+        """
+        tables = []
+
+        for key, table in self._dis_rr_dict.items():
+            if key not in self._df_gamma.columns:
+                print('Ignoring {}'.format(key))
+                continue
+
+            # Extract the relative risk for current smokers.
+            rr_col = '{}_0'.format(key)
+            rr_yes = table[rr_col]
+
+            # Add the standard deviation as a new column.
+            df_rr_sd = self._df_dis_rr_sd.loc[
+                self._df_dis_rr_sd['disease'] == key]
+            if df_rr_sd.empty:
+                raise ValueError('No RR distribution for {}'.format(key))
+
+            df_rr_sd = df_rr_sd.rename(columns={'RR': rr_col})
+            table = table.merge(df_rr_sd.loc[:, ['sex', rr_col, 'sd']],
+                                how='left')
+            table['sd'].fillna(0.0, inplace=True)
+
+            rr_dist = LogNormalRawSD(table['sd'])
+
+            # Determine how many post-cessation states there are (not
+            # including the 0 years post-cessation state).
+            cols = ['age', 'sex', rr_col]
+            num_states = len([c for c in table.columns if c not in cols])
+
+            # Sample the relative risk for current smokers.
+            df_rr = sample_column(table.loc[:, cols], rr_col,
+                                  prng, rr_dist, n)
+            rr_cols = [col for col in df_rr.columns
+                       if col not in ['age', 'sex']]
+
+            # Determine the value of gamma for each cohort.
+            # It is only indexed by age, so we need to merge it with the index
+            # columns of df_rr ('age' and 'sex').
+            gamma = self._df_gamma.loc[:, ['age', key]]
+            gamma.columns = ['age', 'gamma']
+            df_gamma = gamma.merge(df_rr.loc[:, ['age', 'sex']])
+            gamma = df_gamma['gamma']
+
+            # Calculate how this RR decays to 1.0, post-cessation.
+            df_rr = post_cessation_rr(key, df_rr, rr_cols, num_states, gamma)
+
+            if len(tables) > 0:
+                # Remove age and sex columns, so that the RR tables for each
+                # disease can be joined (otherwise these columns will be
+                # duplicated in each table, and the join will fail).
+                df_rr = df_rr.drop(columns=['age', 'sex'])
+
+            tables.append(df_rr)
+
+        df = tables[0].join(tables[1:])
+        return df
 
     def get_expected_tax_effects(self):
         """
@@ -579,3 +673,39 @@ class Tobacco:
         out = out.sort_values(['age', 'sex']).reset_index(drop=True)
 
         return (diseases, out)
+
+    def load_tobacco_disease_rr_gamma(self):
+        data_file = '{}/tobacco_rr_disease_gamma.csv'.format(self.data_dir)
+        data_path = str(pathlib.Path(data_file).resolve())
+        df = pd.read_csv(data_path)
+
+        df.columns = [col.replace(' ', '').replace('cancer', 'Cancer')
+                      for col in df.columns]
+
+        df = df.astype(float).fillna(0.0)
+        df = df.sort_values(['age']).reset_index(drop=True)
+
+        return df
+
+    def load_tobacco_disease_rr_sd(self):
+        data_file = '{}/tobacco_rr_disease_95pcnt_ci.csv'.format(self.data_dir)
+        data_path = str(pathlib.Path(data_file).resolve())
+        df = pd.read_csv(data_path, header=[0, 1], index_col=0)
+
+        # Convert sex into its own column.
+        df = df.stack(level=0).reset_index()
+        df = df.rename(columns={'level_0': 'disease', 'level_1': 'sex'})
+
+        # Rename diseases and sexes as needed.
+        df['disease'] = df['disease'].apply(
+            lambda dis: dis.replace(' ', '').replace('cancer', 'Cancer'))
+        df['sex'] = df['sex'].apply(lambda s: s.lower())
+
+        # Calculate the SD for log-normal distributions.
+        df['sd'] = (np.log(df['95%HCI']) - np.log(df['95%LCI'])) / (2 * 1.96)
+        df = df.loc[:, ['disease', 'sex', 'RR', 'sd']]
+
+        if np.any(df.isna()):
+            raise ValueError('NA values found in tobacco disease RR SD')
+
+        return df
