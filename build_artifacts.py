@@ -17,6 +17,8 @@ import pandas as pd
 from vivarium_public_health.dataset_manager import hdf
 from vivarium_public_health.dataset_manager.artifact import Artifact
 
+import mslt_port
+
 
 def parser():
     p = argparse.ArgumentParser()
@@ -54,9 +56,9 @@ def main(args=None):
     populations = ['non-maori', 'maori']
     for population in populations:
         data_dir = '{}/{}'.format(data_root_dir, population)
-        artifact_prefix = 'tobacco_data_{}'.format(population)
+        artifact_prefix = 'test-tobacco_data_{}'.format(population)
         if bin_edges:
-            artifact_prefix = 'tobacco_bin_data_{}'.format(population)
+            artifact_prefix = 'test-tobacco_bin_data_{}'.format(population)
         build_population_artifacts(data_dir, out_dir, artifact_prefix, year_start, bin_edges)
 
 
@@ -84,6 +86,10 @@ def build_population_artifacts(data_dir, out_dir, artifact_prefix, year_start, b
     bau_label = ['decr']
     delay_label = {True: '0yrs', False: '20yrs'}
 
+    popn = mslt_port.Population(data_dir, year_start)
+    dis = mslt_port.Diseases(data_dir, year_start, popn.year_end)
+    tob = mslt_port.Tobacco(data_dir, year_start, popn.year_end)
+
     for const_lbl in bau_label:
         for zero_delay, zero_lbl in delay_label.items():
             artifact_file = artifact_pattern.format(const_lbl, zero_lbl)
@@ -91,6 +97,7 @@ def build_population_artifacts(data_dir, out_dir, artifact_prefix, year_start, b
             build_artifact(artifact_file, df_base, df_dis,
                            df_tob, df_tob_prev, df_tob_rr_m, df_tob_rr_d,
                            df_tob_tax,
+                           popn, dis, tob,
                            zero_delay=zero_delay, bin_edges=bin_edges)
 
     return 0
@@ -399,7 +406,8 @@ def get_diseases(data_dir, year_start, apc_num_years=15):
         year_start = year_start[0]
     else:
         raise ValueError('Invalid starting year: {}'.format(year_start))
-    year_end = year_start + df_dis['age'].max() - df_dis['age'].min()
+    # Ignore strata that have already reached the terminal age.
+    year_end = year_start + df_dis['age'].max() - df_dis['age'].min() - 1
 
     apc_tables = []
     for age in range(df_dis['age'].min(), df_dis['age'].max() + 1):
@@ -467,7 +475,8 @@ def get_tobacco_rates(data_dir, year_start, df_tob_prev):
     df = get_base_tobacco_rates(data_dir, year_start)
     df_apc = get_tobacco_rates_apc(data_dir)
 
-    year_end = year_start + df['age'].max() - df['age'].min()
+    # Ignore strata that have already reached the terminal age.
+    year_end = year_start + df['age'].max() - df['age'].min() - 1
 
     # The incidence rate is calculated with respect to the initial prevalence
     # of new smokers (i.e., those aged 20).
@@ -518,7 +527,8 @@ def get_tobacco_mortality_rr(data_dir, df_tob):
     :param df_tob: The tobacco rates for each year of the simulation.
     """
     year_start = df_tob['year'].min()
-    year_end = year_start + df_tob['age'].max() - df_tob['age'].min()
+    # Ignore strata that have already reached the terminal age.
+    year_end = year_start + df_tob['age'].max() - df_tob['age'].min() - 1
     if year_end != df_tob['year'].max():
         year_exp = df_tob['year'].max()
         raise ValueError('Invalid final year, {} != {}'.format(year_end,
@@ -578,7 +588,8 @@ def get_tobacco_diseases_rr(data_dir, df_tob):
     :param df_tob: The tobacco rates for each year of the simulation.
     """
     year_start = df_tob['year'].min()
-    year_end = year_start + df_tob['age'].max() - df_tob['age'].min()
+    # Ignore strata that have already reached the terminal age.
+    year_end = year_start + df_tob['age'].max() - df_tob['age'].min() - 1
     if year_end != df_tob['year'].max():
         year_exp = df_tob['year'].max()
         raise ValueError('Invalid final year, {} != {}'.format(year_end,
@@ -591,8 +602,6 @@ def get_tobacco_diseases_rr(data_dir, df_tob):
     # The first two columns are sex and age.
     sex = df.iloc[2:, 0]
     age = df.iloc[2:, 1].astype(int)
-
-    year_end = year_start + age.max() - age.min()
 
     # Create the base disease table.
     out = pd.DataFrame(data={'year': year_start, 'age': age, 'sex': sex})
@@ -766,10 +775,24 @@ def define_bin_edges(df):
     return df
 
 
-def write_table(artifact, path, df, bin_edges=False, verbose=False):
+def write_table(artifact, path, df, bin_edges=False, verbose=False, compare=None):
     """
     Add a data table to an existing artifact.
     """
+    if compare is not None:
+        is_equal = df.equals(compare)
+        if not is_equal:
+            print('DATA DO NOT MATCH: {}'.format(path))
+            merged = df.merge(compare, indicator=True, how='outer')
+            left = merged.loc[merged['_merge'] == 'left_only']
+            right = merged.loc[merged['_merge'] == 'right_only']
+            print(left.head(4).to_string())
+            print(left.tail(4).to_string())
+            print(right.head(4).to_string())
+            print(right.tail(4).to_string())
+            print()
+    else:
+        print('NOT COMPARING: {}'.format(path))
     if bin_edges:
         df = define_bin_edges(df)
     if verbose and False:
@@ -783,6 +806,7 @@ def write_table(artifact, path, df, bin_edges=False, verbose=False):
 
 def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
                    df_tob_rr_m, df_tob_rr_d, df_tob_tax,
+                   popn, dis, tob,
                    zero_delay=False, bin_edges=False):
     """
     Build a data artifact.
@@ -810,11 +834,14 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
 
     # Store the basic population data.
     write_table(art, 'population.structure',
-                get_population(df_base), bin_edges=False)
+                get_population(df_base), bin_edges=False,
+                compare=popn.get_population())
     write_table(art, 'cause.all_causes.disability_rate',
-                get_disability_rate(df_base), bin_edges=bin_edges)
+                get_disability_rate(df_base), bin_edges=bin_edges,
+                compare=popn.get_disability_rate())
     write_table(art, 'cause.all_causes.mortality',
-                get_mortality_rate(df_base), bin_edges=bin_edges)
+                get_mortality_rate(df_base), bin_edges=bin_edges,
+                compare=popn.get_mortality_rate())
 
     # Identify the chronic and acute diseases for which we have data.
     chr_suffix = '_f'
@@ -825,74 +852,111 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
                       if c.endswith(acu_suffix)]
 
     for disease in chronic_diseases:
+        cmp_dis = dis.chronic[disease].get_expected_rates()
+        cmp_dis = cmp_dis.rename(columns={
+            'i': '{}_i'.format(disease),
+            'r': '{}_r'.format(disease),
+            'f': '{}_f'.format(disease),
+            'DR': '{}_DR'.format(disease),
+            'prev': '{}_prev'.format(disease),
+        })
         inc = '{}_i'.format(disease)
         write_table(art, 'chronic_disease.{}.incidence'.format(disease),
                     df_dis.loc[:, ['year', 'age', 'sex', inc]],
-                    bin_edges=bin_edges)
+                    bin_edges=bin_edges,
+                    compare=cmp_dis.loc[:, ['year', 'age', 'sex', inc]])
         rem = '{}_r'.format(disease)
         write_table(art, 'chronic_disease.{}.remission'.format(disease),
                     df_dis.loc[:, ['year', 'age', 'sex', rem]],
-                    bin_edges=bin_edges)
+                    bin_edges=bin_edges,
+                    compare=cmp_dis.loc[:, ['year', 'age', 'sex', rem]])
         cfr = '{}_f'.format(disease)
         write_table(art, 'chronic_disease.{}.mortality'.format(disease),
                     df_dis.loc[:, ['year', 'age', 'sex', cfr]],
-                    bin_edges=bin_edges)
+                    bin_edges=bin_edges,
+                    compare=cmp_dis.loc[:, ['year', 'age', 'sex', cfr]])
         mbd = '{}_DR'.format(disease)
         write_table(art, 'chronic_disease.{}.morbidity'.format(disease),
                     df_dis.loc[:, ['year', 'age', 'sex', mbd]],
-                    bin_edges=bin_edges)
+                    bin_edges=bin_edges,
+                    compare=cmp_dis.loc[:, ['year', 'age', 'sex', mbd]])
         prv = '{}_prev'.format(disease)
         write_table(art, 'chronic_disease.{}.prevalence'.format(disease),
                     df_dis.loc[:, ['year', 'age', 'sex', prv]],
-                    bin_edges=bin_edges)
+                    bin_edges=bin_edges,
+                    compare=cmp_dis.loc[:, ['year', 'age', 'sex', prv]])
 
     for disease in acute_diseases:
+        cmp_dis = dis.acute[disease].get_expected_rates()
+        cmp_dis = cmp_dis.rename(columns={
+            'excess_mortality': '{}_excess_mortality'.format(disease),
+            'disability_rate': '{}_disability_rate'.format(disease),
+        })
         emr = '{}_excess_mortality'.format(disease)
         write_table(art, 'acute_disease.{}.mortality'.format(disease),
                     df_dis.loc[:, ['year', 'age', 'sex', emr]],
-                    bin_edges=bin_edges)
+                    bin_edges=bin_edges,
+                    compare=cmp_dis.loc[:, ['year', 'age', 'sex', emr]])
         mbd = '{}_disability_rate'.format(disease)
         write_table(art, 'acute_disease.{}.morbidity'.format(disease),
                     df_dis.loc[:, ['year', 'age', 'sex', mbd]],
-                    bin_edges=bin_edges)
+                    bin_edges=bin_edges,
+                    compare=cmp_dis.loc[:, ['year', 'age', 'sex', mbd]])
 
     for exposure in ['tobacco']:
+        cmp_rates = tob.get_expected_rates()
         incidence = df_tob.loc[:, ['year', 'age', 'sex', 'incidence']]
         remission = df_tob.loc[:, ['year', 'age', 'sex', 'remission']]
         write_table(art, 'risk_factor.{}.incidence'.format(exposure),
-                    incidence, bin_edges=bin_edges)
+                    incidence, bin_edges=bin_edges,
+                    compare=cmp_rates[['year', 'age', 'sex', 'incidence']])
         write_table(art, 'risk_factor.{}.remission'.format(exposure),
-                    remission, bin_edges=bin_edges)
+                    remission, bin_edges=bin_edges,
+                    compare=cmp_rates[['year', 'age', 'sex', 'remission']])
 
+        cmp_rr_m = tob.get_expected_mortality_rr()
         if zero_delay:
             # Instantly revert to a relative risk of 1.0.
             df_tob_rr_m = update_mortality_rr(df_tob_rr_m, exposure,
                                               years_to_baseline=0)
+            cmp_rr_m = update_mortality_rr(cmp_rr_m, exposure,
+                                           years_to_baseline=0)
         write_table(art,
                     'risk_factor.{}.mortality_relative_risk'.format(exposure),
-                    df_tob_rr_m, bin_edges=bin_edges)
+                    df_tob_rr_m, bin_edges=bin_edges,
+                    compare=cmp_rr_m)
 
+        cmp_rr_d = tob.get_expected_disease_rr(None)
         if zero_delay:
             # Instantly revert to a relative risk of 1.0.
             df_tob_rr_d = update_disease_rr(df_tob_rr_d, years_to_baseline=0)
+            cmp_rr_d = update_disease_rr(cmp_rr_d, years_to_baseline=0)
         write_table(art,
                     'risk_factor.{}.disease_relative_risk'.format(exposure),
                     df_tob_rr_d, bin_edges=bin_edges,
+                    compare=cmp_rr_d,
                     verbose=not zero_delay)
 
+        cmp_prev = tob.get_expected_prevalence()
         if zero_delay:
             # Collapse all former-smokers into a single bin.
             df_tob_prev = update_prevalence(df_tob_prev, exposure,
                                             years_to_baseline=0)
+            cmp_prev = update_prevalence(cmp_prev, exposure,
+                                         years_to_baseline=0)
         write_table(art, 'risk_factor.{}.prevalence'.format(exposure),
-                    df_tob_prev, bin_edges=bin_edges)
+                    df_tob_prev, bin_edges=bin_edges,
+                    compare=cmp_prev)
 
+        cmp_tax = tob.get_expected_tax_effects()
         tax_inc = df_tob_tax[['year', 'age', 'sex', 'incidence_effect']]
         tax_rem = df_tob_tax[['year', 'age', 'sex', 'remission_effect']]
         write_table(art, 'risk_factor.{}.tax_effect_incidence'.format(exposure),
-                    tax_inc, bin_edges=bin_edges)
+                    tax_inc, bin_edges=bin_edges,
+                    compare=cmp_tax[['year', 'age', 'sex', 'incidence_effect']])
         write_table(art, 'risk_factor.{}.tax_effect_remission'.format(exposure),
-                    tax_rem, bin_edges=bin_edges)
+                    tax_rem, bin_edges=bin_edges,
+                    compare=cmp_tax[['year', 'age', 'sex', 'remission_effect']])
 
     print(artifact_file)
 
