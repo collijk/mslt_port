@@ -5,6 +5,85 @@ import numpy as np
 import scipy.stats as st
 
 
+def sample_column(data, column, prng, dist, n):
+    """
+    Draw correlated samples for a single column.
+
+    :param data: The data table.
+    :param column: The column name that defines the mean values.
+    :param prng: The random number generator (``numpy.random.RandomState``).
+    :param dist: The uncertainty distribution.
+    :param n: The number of samples to draw per row.
+    """
+    index_cols = ['age', 'sex']
+    df = data.loc[:, index_cols].copy()
+
+    if np.any(df.isna()):
+        raise ValueError('NA values found, sampling column {}'.format(column))
+
+    mean_values = data[column]
+
+    all_zeros = len(mean_values.nonzero()[0]) == 0
+    if all_zeros:
+        # This column only contains zeros, don't sample with uncertainty.
+        for ix in range(n + 1):
+            draw_column = '{}_draw_{}'.format(column, ix)
+            df[draw_column] = 0.0
+        return df
+
+    samples = prng.random_sample(size=n)
+    values = dist.correlated_samples(mean_values, samples)
+    values[:, mean_values == 0.0] = 0
+    df_draws = pd.DataFrame(np.transpose(values))
+    df_draws.columns = ['{}_draw_{}'.format(column, ix + 1)
+                        for ix in range(len(values))]
+    df_draws.insert(0, '{}_draw_0'.format(column), mean_values)
+    df = pd.concat([df, df_draws], axis=1)
+
+    if np.any(df.isna()):
+        raise ValueError('NA values found, sampling column {}'.format(column))
+
+    return df
+
+
+def sample_fixed_rate(year_start, year_end, data, rate_name,
+                      prng, rate_dist, n):
+    """
+    Draw correlated samples for a rate at each year.
+
+    :param year_start: The year at which the simulation starts.
+    :param year_end: The year at which the simulation ends.
+    :param data: The data table that contains the rate values.
+    :param rate_name: The column name that defines the mean values.
+    :param prng: The random number generator (``numpy.random.RandomState``).
+    :param rate_dist: The uncertainty distribution for the rate values.
+    :param n: The number of samples to draw per row.
+    """
+    value_col = rate_name
+
+    # Sample the initial rate for each cohort.
+    df = sample_column(data, value_col, prng, rate_dist, n)
+
+    df.insert(0, 'year', 0)
+    df_index_cols = ['year', 'age', 'sex']
+
+    tables = []
+    years = range(year_start, year_end + 1)
+
+    # Calculate the correlated samples for each cohort at each year.
+    for year in years:
+        df['year'] = year
+        tables.append(df.copy())
+
+    df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
+    df = df.reset_index(drop=True)
+
+    if np.any(df.isna()):
+        raise ValueError('NA values found, sampling rate {}'.format(column))
+
+    return df
+
+
 class Normal:
     """
     Draw samples from a normal distribution, whose standard deviation is a

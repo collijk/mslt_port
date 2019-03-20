@@ -4,43 +4,11 @@ import pandas as pd
 import numpy as np
 import pathlib
 
-
-def sample_column(data, column, prng, dist, n):
-    """
-    Draw correlated samples for a single column.
-
-    :param data: The data table.
-    :param column: The column name that defines the mean values.
-    :param prng: The random number generator (``numpy.random.RandomState``).
-    :param dist: The uncertainty distribution.
-    :param n: The number of samples to draw per row.
-    """
-    index_cols = ['age', 'sex']
-    df = data.loc[:, index_cols].copy()
-
-    mean_values = data[column]
-
-    all_zeros = len(mean_values.nonzero()[0]) == 0
-    if all_zeros:
-        # This column only contains zeros, don't sample with uncertainty.
-        for ix in range(n + 1):
-            draw_column = '{}_draw_{}'.format(column, ix)
-            df[draw_column] = 0.0
-        return df
-
-    samples = prng.random_sample(size=n)
-    values = dist.correlated_samples(mean_values, samples)
-    values[:, mean_values == 0.0] = 0
-    df_draws = pd.DataFrame(np.transpose(values))
-    df_draws.columns = ['{}_draw_{}'.format(column, ix + 1)
-                        for ix in range(len(values))]
-    df_draws.insert(0, '{}_draw_0'.format(column), mean_values)
-    df = pd.concat([df, df_draws], axis=1)
-    return df
+from .uncertainty import sample_column, sample_fixed_rate
 
 
-def sample_rate(year_start, year_end, data, rate_name, apc_data,
-                num_apc_years, prng, rate_dist, apc_dist, n):
+def sample_disease_rate(year_start, year_end, data, rate_name, apc_data,
+                        num_apc_years, prng, rate_dist, apc_dist, n):
     """
     Draw correlated samples for a rate at each year.
 
@@ -179,31 +147,31 @@ class Chronic:
 
     def sample_i(self, prng, rate_dist, apc_dist, n):
         """Sample the incidence rate."""
-        return sample_rate(self._year_start, self._year_end,
-                           self._data, 'i',
-                           self._apc, self._num_apc_years,
-                           prng, rate_dist, apc_dist, n)
+        return sample_disease_rate(self._year_start, self._year_end,
+                                   self._data, 'i',
+                                   self._apc, self._num_apc_years,
+                                   prng, rate_dist, apc_dist, n)
 
     def sample_r(self, prng, rate_dist, apc_dist, n):
         """Sample the remission rate."""
-        return sample_rate(self._year_start, self._year_end,
-                           self._data, 'r',
-                           self._apc, self._num_apc_years,
-                           prng, rate_dist, apc_dist, n)
+        return sample_disease_rate(self._year_start, self._year_end,
+                                   self._data, 'r',
+                                   self._apc, self._num_apc_years,
+                                   prng, rate_dist, apc_dist, n)
 
     def sample_f(self, prng, rate_dist, apc_dist, n):
         """Sample the case fatality rate."""
-        return sample_rate(self._year_start, self._year_end,
-                           self._data, 'f',
-                           self._apc, self._num_apc_years,
-                           prng, rate_dist, apc_dist, n)
+        return sample_disease_rate(self._year_start, self._year_end,
+                                   self._data, 'f',
+                                   self._apc, self._num_apc_years,
+                                   prng, rate_dist, apc_dist, n)
 
     def sample_yld(self, prng, rate_dist, apc_dist, n):
         """Sample the years lost due to disability rate."""
-        return sample_rate(self._year_start, self._year_end,
-                           self._data, 'DR',
-                           self._apc, self._num_apc_years,
-                           prng, rate_dist, apc_dist, n)
+        return sample_disease_rate(self._year_start, self._year_end,
+                                   self._data, 'DR',
+                                   self._apc, self._num_apc_years,
+                                   prng, rate_dist, apc_dist, n)
 
     def sample_prevalence(self, prng, rate_dist, apc_dist, n):
         """Sample the initial prevalence of disease."""
@@ -250,18 +218,14 @@ class Acute:
     def sample_excess_mortality(self, prng, rate_dist, n):
         """Sample the excess mortality rate."""
         col = 'excess_mortality'
-        return sample_rate(self._year_start, self._year_end,
-                           self._data, col,
-                           None, 0,
-                           prng, rate_dist, None, n)
+        return sample_fixed_rate(self._year_start, self._year_end,
+                                 self._data, col, prng, rate_dist, n)
 
     def sample_disability(self, prng, rate_dist, n):
         """Sample the disability rate."""
         col = 'disability_rate'
-        return sample_rate(self._year_start, self._year_end,
-                           self._data, col,
-                           None, 0,
-                           prng, rate_dist, None, n)
+        return sample_fixed_rate(self._year_start, self._year_end,
+                                 self._data, col, prng, rate_dist, n)
 
 
 class Diseases:
