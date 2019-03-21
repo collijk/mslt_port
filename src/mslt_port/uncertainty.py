@@ -76,6 +76,9 @@ def wide_to_long(data, index_cols=None, draw_col='draw'):
     rename_to = {c: __suffix_re.sub('', c) for c in col_stubs}
     data = data.rename(columns=rename_to).reset_index()
 
+    # Sort rows by the index columns to maintain a consistent ordering.
+    data = data.sort_values(index_cols)
+
     if np.any(data.isna()):
         raise ValueError('NA values found in long table')
 
