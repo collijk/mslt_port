@@ -265,7 +265,7 @@ class Tobacco:
 
             # Determine how many post-cessation states there are (not
             # including the 0 years post-cessation state).
-            cols = ['age', 'sex', rr_col]
+            cols = ['age', 'sex', rr_col, 'sd']
             num_states = len([c for c in table.columns if c not in cols])
 
             # Sample the relative risk for current smokers.
