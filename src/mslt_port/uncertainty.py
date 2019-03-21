@@ -2,7 +2,84 @@
 
 import pandas as pd
 import numpy as np
+import re
 import scipy.stats as st
+
+
+__draw_re = re.compile('.+_draw_[0-9]+$')
+"""
+A regular expression that matches column names which contain a draw for some
+quantity.
+"""
+
+
+__draw_num_re = re.compile('_[0-9]+$')
+"""
+A regular expression that matches the draw number suffix of these columns.
+"""
+
+
+__suffix_re = re.compile('_draw$')
+"""
+A regular expression that matches the suffix of the column stubs.
+"""
+
+
+def wide_to_long(data, index_cols=None, draw_col='draw'):
+    """
+    Convert a data table in which each draw is a separate column into a data
+    table in which each draw is a separate row, and the draw number is
+    identified in a new column (the default is 'draw').
+
+    :param data: The data table.
+    :param index_cols: The (optional) list of index columns that uniquely
+        identify each row; columns in this list that are not present in the
+        table will be ignored. The default is ``['year', 'age', 'sex']``.
+    :param draw_col: The name of the column that will be created to contain
+        the draw number. The default is ``'draw'``.
+    """
+    if index_cols is None:
+        index_cols = ['year', 'age', 'sex']
+
+    # Determine which index columns exist in this table.
+    index_cols = [c for c in index_cols if c in data.columns]
+
+    # Identify which columns contain draws.
+    draw_cols = [c for c in data.columns if __draw_re.match(c)]
+
+    # Ensure the index columns and draw columns have no columns in common.
+    in_common = set(index_cols) & set(draw_cols)
+    if in_common:
+        msg = 'Index and draw columns overlap: {}'.format(in_common)
+        raise ValueError(msg)
+
+    # Ensure the table contains no other columns.
+    other_cols = [c for c in data.columns
+                  if c not in index_cols and c not in draw_cols]
+    if other_cols:
+        raise ValueError('Additional columns {}'.format(other_cols))
+
+    # Determine the stub name for each draw column (i.e., the prefix that
+    # identifies the variable being sampled).
+    col_stubs = [__draw_num_re.sub('', c) for c in draw_cols]
+
+    # Remove duplicate stubs (there will be a copy for each draw) and retain
+    # the column ordering of the original table.
+    seen_stubs = set()
+    col_stubs = [c for c in col_stubs
+                 if not (c in seen_stubs or seen_stubs.add(c))]
+
+    # Convert from wide to long format; each draw is now a separate row.
+    data = pd.wide_to_long(data, col_stubs, index_cols, 'draw', sep='_')
+
+    # Rename columns to remove the '_draw' ending from each stub.
+    rename_to = {c: __suffix_re.sub('', c) for c in col_stubs}
+    data = data.rename(columns=rename_to).reset_index()
+
+    if np.any(data.isna()):
+        raise ValueError('NA values found in long table')
+
+    return data
 
 
 def sample_column(data, column, prng, dist, n):
