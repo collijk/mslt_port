@@ -4,7 +4,8 @@ import pandas as pd
 import numpy as np
 import pathlib
 
-from .uncertainty import sample_fixed_rate
+from .uncertainty import (sample_fixed_rate, sample_fixed_rate_from,
+                          wide_to_long)
 
 
 class Population:
@@ -53,6 +54,18 @@ class Population:
         return sample_fixed_rate(self.year_start, self.year_end,
                                  self._data, 'disability_rate',
                                  prng, rate_dist, n)
+
+    def sample_disability_rate_from(self, rate_dist, samples):
+        """
+        Sample values for the disability rate for each stratum.
+
+        :param rate_dist: The sampling distribution.
+        :param samples: Random samples from the half-open interval [0, 1).
+        """
+        df = sample_fixed_rate_from(self.year_start, self.year_end,
+                                    self._data, 'disability_rate',
+                                    rate_dist, samples)
+        return wide_to_long(df)
 
     def get_disability_rate(self):
         """Return the disability rate for each stratum."""
