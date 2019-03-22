@@ -51,9 +51,11 @@ class Population:
         return self._data.loc[self._data['population'].notna(), cols]
 
     def sample_disability_rate(self, prng, rate_dist, n):
-        return sample_fixed_rate(self.year_start, self.year_end,
-                                 self._data, 'disability_rate',
-                                 prng, rate_dist, n)
+        df = self._data.rename(columns={'disability_rate': 'rate'})
+        df = sample_fixed_rate(self.year_start, self.year_end,
+                               df, 'rate',
+                               prng, rate_dist, n)
+        return df
 
     def sample_disability_rate_from(self, rate_dist, samples):
         """
@@ -62,8 +64,9 @@ class Population:
         :param rate_dist: The sampling distribution.
         :param samples: Random samples from the half-open interval [0, 1).
         """
+        df = self._data.rename(columns={'disability_rate': 'rate'})
         df = sample_fixed_rate_from(self.year_start, self.year_end,
-                                    self._data, 'disability_rate',
+                                    df, 'rate',
                                     rate_dist, samples)
         return wide_to_long(df)
 
