@@ -65,8 +65,10 @@ def sample_tobacco_rate(year_start, year_end, data, rate_name, prev_data,
     # Sample the initial rate for each cohort.
     df = sample_column(data, value_col, prng, rate_dist, n)
 
-    df.insert(0, 'year', 0)
-    df_index_cols = ['year', 'age', 'sex']
+    df.insert(0, 'year_start', 0)
+    df.insert(1, 'year_end', 0)
+
+    df_index_cols = ['year_start', 'year_end', 'age', 'sex']
     apc_index_cols = ['age', 'sex']
 
     tables = []
@@ -82,19 +84,31 @@ def sample_tobacco_rate(year_start, year_end, data, rate_name, prev_data,
 
         # Calculate the correlated samples for each cohort at each year.
         for counter, year in enumerate(years):
-            df['year'] = year
-            if counter < num_apc_years and year > year_start:
+            df['year_start'] = year
+            if counter < num_apc_years:
+                df['year_end'] = year + 1
                 timespan = year - year_start
                 result = initial_rate * (frac ** timespan)[..., np.newaxis]
                 df.loc[:, data_columns] = result
-            tables.append(df.copy())
-    else:
-        # Calculate the correlated samples for each cohort at each year.
-        for year in years:
-            df['year'] = year
-            tables.append(df.copy())
+                tables.append(df.copy())
+            else:
+                df['year_end'] = year_end
+                tables.append(df.copy())
+                break
 
-    df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
+        df = pd.concat(tables)
+
+    else:
+        df['year_start'] = year_start
+        df['year_end'] = year_end
+
+    # Replace 'age' with age groups.
+    df = df.rename(columns={'age': 'age_group_start'})
+    df.insert(df.columns.get_loc('age_group_start') + 1,
+              'age_group_end',
+              df['age_group_start'] + 1)
+
+    df = df.sort_values(['year_start', 'age_group_start', 'sex'])
     df = df.reset_index(drop=True)
 
     return df
@@ -128,8 +142,10 @@ def sample_tobacco_rate_from(year_start, year_end, data, rate_name, prev_data,
     # Sample the initial rate for each cohort.
     df = sample_column_from(data, value_col, rate_dist, samples)
 
-    df.insert(0, 'year', 0)
-    df_index_cols = ['year', 'age', 'sex']
+    df.insert(0, 'year_start', 0)
+    df.insert(1, 'year_end', 0)
+
+    df_index_cols = ['year_start', 'year_end', 'age', 'sex']
     apc_index_cols = ['age', 'sex']
 
     tables = []
@@ -145,19 +161,31 @@ def sample_tobacco_rate_from(year_start, year_end, data, rate_name, prev_data,
 
         # Calculate the correlated samples for each cohort at each year.
         for counter, year in enumerate(years):
-            df['year'] = year
-            if counter < num_apc_years and year > year_start:
+            df['year_start'] = year
+            if counter < num_apc_years:
+                df['year_end'] = year + 1
                 timespan = year - year_start
                 result = initial_rate * (frac ** timespan)[..., np.newaxis]
                 df.loc[:, data_columns] = result
-            tables.append(df.copy())
-    else:
-        # Calculate the correlated samples for each cohort at each year.
-        for year in years:
-            df['year'] = year
-            tables.append(df.copy())
+                tables.append(df.copy())
+            else:
+                df['year_end'] = year_end
+                tables.append(df.copy())
+                break
 
-    df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
+        df = pd.concat(tables)
+
+    else:
+        df['year_start'] = year_start
+        df['year_end'] = year_end
+
+    # Replace 'age' with age groups.
+    df = df.rename(columns={'age': 'age_group_start'})
+    df.insert(df.columns.get_loc('age_group_start') + 1,
+              'age_group_end',
+              df['age_group_start'] + 1)
+
+    df = df.sort_values(['year_start', 'age_group_end', 'sex'])
     df = df.reset_index(drop=True)
 
     return df
@@ -190,7 +218,7 @@ class Tobacco:
         return wide_to_long(df_elast)
 
     def scale_price_elasticity_from(self, df_elast, mean_scale, scale_dist,
-                                     samples):
+                                    samples):
         """
         Scale the price elasticity by variable amounts.
 
@@ -236,7 +264,9 @@ class Tobacco:
         """
         df_price = self._df_price
         df_elast = df_elast.copy()
-        df_elast.insert(0, 'year', 0)
+
+        df_elast.insert(0, 'year_start', self._year_start)
+        df_elast.insert(1, 'year_end', self._year_end)
 
         if np.any(df_elast.isna()):
             raise ValueError('NA values in elast_cols')
@@ -249,7 +279,8 @@ class Tobacco:
         start_price = df_price.loc[0, 'price']
         tables = []
         for i, row in enumerate(df_price.itertuples()):
-            df_elast['year'] = row.year
+            df_elast['year_start'] = row.year
+            df_elast['year_end'] = row.year + 1
             df_elast['price'] = row.price
 
             df_elast['incidence_effect'] = np.exp(
@@ -269,9 +300,19 @@ class Tobacco:
 
             tables.append(df_elast.copy())
 
-        df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
+        df = pd.concat(tables)
+
+        # Replace 'age' with age groups.
+        df = df.rename(columns={'age': 'age_group_start'})
+        df.insert(df.columns.get_loc('age_group_start') + 1,
+                  'age_group_end',
+                  df['age_group_start'] + 1)
+
+        df = df.sort_values(['year_start', 'age_group_start', 'sex'])
         df = df.reset_index(drop=True)
-        df = df.loc[:, ['year', 'age', 'sex', 'draw',
+        df = df.loc[:, ['year_start', 'year_end',
+                        'age_group_start', 'age_group_end',
+                        'sex', 'draw',
                         'incidence_effect', 'remission_effect']]
 
         if np.any(df.isna()):
@@ -455,7 +496,25 @@ class Tobacco:
 
             tables.append(df_rr)
 
-        df = tables[0].join(tables[1:])
+        if len(tables) > 1:
+            df = tables[0].join(tables[1:])
+        elif len(tables) == 1:
+            df = tables[0]
+        else:
+            raise ValueError('No diseases with RRs')
+
+        df.insert(0, 'year_start', self._year_start)
+        df.insert(1, 'year_end', self._year_end)
+
+        # Replace 'age' with age groups.
+        df = df.rename(columns={'age': 'age_group_start'})
+        df.insert(df.columns.get_loc('age_group_start') + 1,
+                  'age_group_end',
+                  df['age_group_start'] + 1)
+
+        df = df.sort_values(['year_start', 'age_group_start', 'sex'])
+        df = df.reset_index(drop=True)
+
         return df
 
     def sample_disease_rr(self, prng, n):
@@ -582,12 +641,17 @@ class Tobacco:
                 int_col = col.replace(bau_prefix, int_prefix)
                 df[int_col] = df[col]
 
-        tables = []
-        for year in range(self._year_start, self._year_end + 1):
-            df['year'] = year
-            tables.append(df.copy())
+        df = df.drop(columns='year')
+        df.insert(0, 'year_start', self._year_start)
+        df.insert(1, 'year_end', self._year_end)
 
-        df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
+        # Replace 'age' with age groups.
+        df = df.rename(columns={'age': 'age_group_start'})
+        df.insert(df.columns.get_loc('age_group_start') + 1,
+                  'age_group_end',
+                  df['age_group_start'] + 1)
+
+        df = df.sort_values(['year_start', 'age_group_start', 'sex'])
         df = df.reset_index(drop=True)
 
         if np.any(df.isna()):
@@ -603,7 +667,23 @@ class Tobacco:
         mask = df['age'] == 20
         df.loc[mask, 'tobacco.no'] += df.loc[mask, 'tobacco.yes']
         df.loc[mask, 'tobacco.yes'] = 0.0
-        df = df.sort_values(['year', 'age', 'sex']).reset_index(drop=True)
+
+        df = df.drop(columns='year')
+        df.insert(0, 'year_start', self._year_start)
+        df.insert(1, 'year_end', self._year_end)
+
+        # Replace 'age' with age groups.
+        df = df.rename(columns={'age': 'age_group_start'})
+        df.insert(df.columns.get_loc('age_group_start') + 1,
+                  'age_group_end',
+                  df['age_group_start'] + 1)
+
+        df = df.sort_values(['year_start', 'age_group_start', 'sex'])
+        df = df.reset_index(drop=True)
+
+        if np.any(df.isna()):
+            raise ValueError('NA values found in tobacco mortality RR data')
+
         return df
 
     def get_expected_rates(self):

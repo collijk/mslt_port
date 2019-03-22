@@ -39,7 +39,14 @@ def wide_to_long(data, index_cols=None, draw_col='draw'):
         the draw number. The default is ``'draw'``.
     """
     if index_cols is None:
-        index_cols = ['year', 'age', 'sex']
+        if 'age' in data.columns:
+            index_cols = ['year', 'age', 'sex']
+        elif 'age_group_start' in data.columns:
+            index_cols = ['year_start', 'year_end',
+                          'age_group_start', 'age_group_end',
+                          'sex']
+        else:
+            raise ValueError('Cannot identify index columns')
 
     # Determine which index columns exist in this table.
     index_cols = [c for c in index_cols if c in data.columns]
@@ -189,18 +196,14 @@ def sample_fixed_rate(year_start, year_end, data, rate_name,
     # Sample the initial rate for each cohort.
     df = sample_column(data, value_col, prng, rate_dist, n)
 
-    df.insert(0, 'year', 0)
-    df_index_cols = ['year', 'age', 'sex']
+    df.insert(0, 'year_start', year_start)
+    df.insert(1, 'year_end', year_end)
+    df = df.rename(columns={'age': 'age_group_start'})
+    df.insert(df.columns.get_loc('age_group_start') + 1,
+              'age_group_end',
+              df['age_group_start'] + 1)
 
-    tables = []
-    years = range(year_start, year_end + 1)
-
-    # Calculate the correlated samples for each cohort at each year.
-    for year in years:
-        df['year'] = year
-        tables.append(df.copy())
-
-    df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
+    df = df.sort_values(['year_start', 'age_group_start', 'sex'])
     df = df.reset_index(drop=True)
 
     if np.any(df.isna()):
@@ -226,18 +229,14 @@ def sample_fixed_rate_from(year_start, year_end, data, rate_name,
     # Sample the initial rate for each cohort.
     df = sample_column_from(data, value_col, rate_dist, samples)
 
-    df.insert(0, 'year', 0)
-    df_index_cols = ['year', 'age', 'sex']
+    df.insert(0, 'year_start', year_start)
+    df.insert(1, 'year_end', year_end)
+    df = df.rename(columns={'age': 'age_group_start'})
+    df.insert(df.columns.get_loc('age_group_start') + 1,
+              'age_group_end',
+              df['age_group_start'] + 1)
 
-    tables = []
-    years = range(year_start, year_end + 1)
-
-    # Calculate the correlated samples for each cohort at each year.
-    for year in years:
-        df['year'] = year
-        tables.append(df.copy())
-
-    df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
+    df = df.sort_values(['year_start', 'age_group_start', 'sex'])
     df = df.reset_index(drop=True)
 
     if np.any(df.isna()):

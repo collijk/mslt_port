@@ -72,12 +72,18 @@ class Population:
         df = self._data[['age', 'sex', 'disability_rate']]
         df = df.rename(columns={'disability_rate': 'rate'})
 
-        tables = []
-        for year in self.years():
-            df['year'] = year
-            tables.append(df.copy())
+        # Replace 'age' with age groups.
+        df = df.rename(columns={'age': 'age_group_start'})
+        df.insert(df.columns.get_loc('age_group_start') + 1,
+                  'age_group_end',
+                  df['age_group_start'] + 1)
 
-        df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
+        # These values apply at each year of the simulation, so we only need
+        # to define a single bin.
+        df.insert(0, 'year_start', self.year_start)
+        df.insert(1, 'year_end', self.year_end)
+
+        df = df.sort_values(['year_start', 'age_group_start', 'sex'])
         df = df.reset_index(drop=True)
 
         return df
@@ -107,12 +113,22 @@ class Population:
         # - Each cohort has a separate APC (column FE)
         # - ACMR = BASE_ACMR * e^(APC * (year - 2011))
         df_apc = self.get_acmr_apc()
-        df_acmr = self._data[['year', 'age', 'sex', 'mortality_rate']]
+        df_acmr = self._data[['age', 'sex', 'mortality_rate']]
         df_acmr = df_acmr.rename(columns={'mortality_rate': 'rate'})
         base_acmr = df_acmr['rate'].copy()
 
+        # Replace 'age' with age groups.
+        df_acmr = df_acmr.rename(columns={'age': 'age_group_start'})
+        df_acmr.insert(df_acmr.columns.get_loc('age_group_start') + 1,
+                       'age_group_end',
+                       df_acmr['age_group_start'] + 1)
+
+        # These values apply at each year of the simulation, so we only need
+        # to define a single bin.
+        df_acmr.insert(0, 'year_start', self.year_start -1)
+        df_acmr.insert(1, 'year_end', self.year_start)
+
         tables = []
-        df_acmr['year'] = self.year_start - 1
         tables.append(df_acmr.copy())
         for counter, year in enumerate(self.years()):
             if counter <= self._num_apc_years:
@@ -125,10 +141,12 @@ class Population:
                 # year; shift by 2 because there are male and female cohorts.
                 scale[2:] = scale[:-2]
                 df_acmr.loc[:, 'rate'] = base_acmr * scale
-            df_acmr['year'] = year
+            df_acmr['year_start'] = year
+            df_acmr['year_end'] = year + 1
             tables.append(df_acmr.copy())
 
-        df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
+        df = pd.concat(tables).sort_values(['year_start', 'age_group_start',
+                                            'sex'])
         df = df.reset_index(drop=True)
 
         return df

@@ -33,8 +33,10 @@ def sample_disease_rate(year_start, year_end, data, rate_name, apc_data,
     # Sample the initial rate for each cohort.
     df = sample_column(data, value_col, prng, rate_dist, n)
 
-    df.insert(0, 'year', 0)
-    df_index_cols = ['year', 'age', 'sex']
+    df.insert(0, 'year_start', 0)
+    df.insert(1, 'year_end', 0)
+
+    df_index_cols = ['year_start', 'year_end', 'age', 'sex']
     apc_index_cols = ['age', 'sex']
 
     tables = []
@@ -55,19 +57,31 @@ def sample_disease_rate(year_start, year_end, data, rate_name, apc_data,
 
         # Calculate the correlated samples for each cohort at each year.
         for counter, year in enumerate(years):
-            df['year'] = year
+            df['year_start'] = year
             if counter < num_apc_years and year > year_start:
+                df['year_end'] = year + 1
                 timespan = year - year_start
                 scale = np.exp(apc_values * timespan)
                 df.loc[:, draw_columns] = base_values * scale
-            tables.append(df.copy())
-    else:
-        # Calculate the correlated samples for each cohort at each year.
-        for year in years:
-            df['year'] = year
-            tables.append(df.copy())
+                tables.append(df.copy())
+            else:
+                df['year_end'] = year_end + 1
+                tables.append(df.copy())
+                break
 
-    df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
+        df = pd.concat(tables)
+
+    else:
+        df['year_start'] = year_start
+        df['year_end'] = year_end
+
+    # Replace 'age' with age groups.
+    df = df.rename(columns={'age': 'age_group_start'})
+    df.insert(df.columns.get_loc('age_group_start') + 1,
+              'age_group_end',
+              df['age_group_start'] + 1)
+
+    df = df.sort_values(['year_start', 'age_group_start', 'sex'])
     df = df.reset_index(drop=True)
 
     return df
@@ -98,8 +112,10 @@ def sample_disease_rate_from(year_start, year_end, data, rate_name, apc_data,
     # Sample the initial rate for each cohort.
     df = sample_column_from(data, value_col, rate_dist, rate_samples)
 
-    df.insert(0, 'year', 0)
-    df_index_cols = ['year', 'age', 'sex']
+    df.insert(0, 'year_start', 0)
+    df.insert(1, 'year_end', 0)
+
+    df_index_cols = ['year_start', 'year_end', 'age', 'sex']
     apc_index_cols = ['age', 'sex']
 
     tables = []
@@ -120,19 +136,31 @@ def sample_disease_rate_from(year_start, year_end, data, rate_name, apc_data,
 
         # Calculate the correlated samples for each cohort at each year.
         for counter, year in enumerate(years):
-            df['year'] = year
-            if counter < num_apc_years and year > year_start:
+            df['year_start'] = year
+            if counter < num_apc_years:
+                df['year_end'] = year + 1
                 timespan = year - year_start
                 scale = np.exp(apc_values * timespan)
                 df.loc[:, draw_columns] = base_values * scale
-            tables.append(df.copy())
-    else:
-        # Calculate the correlated samples for each cohort at each year.
-        for year in years:
-            df['year'] = year
-            tables.append(df.copy())
+                tables.append(df.copy())
+            else:
+                df['year_end'] = year_end + 1
+                tables.append(df.copy())
+                break
 
-    df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
+        df = pd.concat(tables)
+
+    else:
+        df['year_start'] = year_start
+        df['year_end'] = year_end
+
+    # Replace 'age' with age groups.
+    df = df.rename(columns={'age': 'age_group_start'})
+    df.insert(df.columns.get_loc('age_group_start') + 1,
+              'age_group_end',
+              df['age_group_start'] + 1)
+
+    df = df.sort_values(['year_start', 'age_group_start', 'sex'])
     df = df.reset_index(drop=True)
 
     return df
@@ -187,28 +215,41 @@ class Chronic:
 
 
     def get_expected_rates(self):
+        # NOTE: need to do this separately for each rate, since some rates
+        # may have APCs and other rates will not.
         years = range(self._year_start, self._year_end + 1)
         tables = []
         df_tmp = self._data.copy()
 
         if self._apc is None:
-            for counter, year in enumerate(years):
-                df_tmp['year'] = year
-                tables.append(df_tmp.copy())
+            df_tmp['year_start'] = self._year_start
+            df_tmp['year_end'] = self._year_end
+            tables.append(df_tmp.copy())
         else:
             modify_rates = [c for c in self._apc.columns
                             if c in df_tmp.columns and c in ['i', 'r', 'f']]
             base_rates = self._data.loc[:, modify_rates]
             for counter, year in enumerate(years):
-                if counter < self._num_apc_years and year > self._year_start:
+                df_tmp['year_start'] = year
+                if counter < self._num_apc_years:
+                    df_tmp['year_end'] = year + 1
                     timespan = year - self._year_start
                     scale = np.exp(self._apc.loc[:, modify_rates].values * timespan)
                     df_tmp.loc[:, modify_rates] = base_rates.values * scale
-                df_tmp['year'] = year
-                tables.append(df_tmp.copy())
+                    tables.append(df_tmp.copy())
+                else:
+                    df_tmp['year_end'] = self._year_end
+                    tables.append(df_tmp.copy())
+                    break
 
-        df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
+        df = pd.concat(tables).sort_values(['year_start', 'age', 'sex'])
         df = df.reset_index(drop=True)
+
+        # Replace 'age' with age groups.
+        df = df.rename(columns={'age': 'age_group_start'})
+        df.insert(df.columns.get_loc('age_group_start') + 1,
+                  'age_group_end',
+                  df['age_group_start'] + 1)
 
         return df
 
@@ -251,7 +292,12 @@ class Chronic:
     def sample_prevalence_from(self, rate_dist, rate_samples):
         """Sample the initial prevalence of disease."""
         df = sample_column_from(self._data, 'prev', rate_dist, rate_samples)
-        df.insert(0, 'year', self._year_start)
+        df.insert(0, 'year_start', self._year_start)
+        df.insert(1, 'year_end', self._year_start + 1)
+        df = df.rename(columns={'age': 'age_group_start'})
+        df.insert(df.columns.get_loc('age_group_start') + 1,
+                  'age_group_end',
+                  df['age_group_start'] + 1)
         return wide_to_long(df)
 
     def sample_i(self, prng, rate_dist, apc_dist, n):
