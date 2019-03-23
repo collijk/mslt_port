@@ -73,7 +73,7 @@ def sample_disease_rate(year_start, year_end, data, rate_name, apc_data,
 
     else:
         df['year_start'] = year_start
-        df['year_end'] = year_end
+        df['year_end'] = year_end + 1
 
     # Replace 'age' with age groups.
     df = df.rename(columns={'age': 'age_group_start'})
@@ -152,7 +152,7 @@ def sample_disease_rate_from(year_start, year_end, data, rate_name, apc_data,
 
     else:
         df['year_start'] = year_start
-        df['year_end'] = year_end
+        df['year_end'] = year_end + 1
 
     # Replace 'age' with age groups.
     df = df.rename(columns={'age': 'age_group_start'})
@@ -223,7 +223,7 @@ class Chronic:
 
         if self._apc is None:
             df_tmp['year_start'] = self._year_start
-            df_tmp['year_end'] = self._year_end
+            df_tmp['year_end'] = self._year_end + 1
             tables.append(df_tmp.copy())
         else:
             modify_rates = [c for c in self._apc.columns
@@ -238,7 +238,7 @@ class Chronic:
                     df_tmp.loc[:, modify_rates] = base_rates.values * scale
                     tables.append(df_tmp.copy())
                 else:
-                    df_tmp['year_end'] = self._year_end
+                    df_tmp['year_end'] = self._year_end + 1
                     tables.append(df_tmp.copy())
                     break
 

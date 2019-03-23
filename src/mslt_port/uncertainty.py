@@ -197,7 +197,7 @@ def sample_fixed_rate(year_start, year_end, data, rate_name,
     df = sample_column(data, value_col, prng, rate_dist, n)
 
     df.insert(0, 'year_start', year_start)
-    df.insert(1, 'year_end', year_end)
+    df.insert(1, 'year_end', year_end + 1)
     df = df.rename(columns={'age': 'age_group_start'})
     df.insert(df.columns.get_loc('age_group_start') + 1,
               'age_group_end',
@@ -230,7 +230,7 @@ def sample_fixed_rate_from(year_start, year_end, data, rate_name,
     df = sample_column_from(data, value_col, rate_dist, samples)
 
     df.insert(0, 'year_start', year_start)
-    df.insert(1, 'year_end', year_end)
+    df.insert(1, 'year_end', year_end + 1)
     df = df.rename(columns={'age': 'age_group_start'})
     df.insert(df.columns.get_loc('age_group_start') + 1,
               'age_group_end',

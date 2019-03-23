@@ -92,7 +92,7 @@ def sample_tobacco_rate(year_start, year_end, data, rate_name, prev_data,
                 df.loc[:, data_columns] = result
                 tables.append(df.copy())
             else:
-                df['year_end'] = year_end
+                df['year_end'] = year_end + 1
                 tables.append(df.copy())
                 break
 
@@ -100,7 +100,7 @@ def sample_tobacco_rate(year_start, year_end, data, rate_name, prev_data,
 
     else:
         df['year_start'] = year_start
-        df['year_end'] = year_end
+        df['year_end'] = year_end + 1
 
     # Replace 'age' with age groups.
     df = df.rename(columns={'age': 'age_group_start'})
@@ -169,7 +169,7 @@ def sample_tobacco_rate_from(year_start, year_end, data, rate_name, prev_data,
                 df.loc[:, data_columns] = result
                 tables.append(df.copy())
             else:
-                df['year_end'] = year_end
+                df['year_end'] = year_end + 1
                 tables.append(df.copy())
                 break
 
@@ -177,7 +177,7 @@ def sample_tobacco_rate_from(year_start, year_end, data, rate_name, prev_data,
 
     else:
         df['year_start'] = year_start
-        df['year_end'] = year_end
+        df['year_end'] = year_end + 1
 
     # Replace 'age' with age groups.
     df = df.rename(columns={'age': 'age_group_start'})
@@ -266,7 +266,7 @@ class Tobacco:
         df_elast = df_elast.copy()
 
         df_elast.insert(0, 'year_start', self._year_start)
-        df_elast.insert(1, 'year_end', self._year_end)
+        df_elast.insert(1, 'year_end', self._year_end + 1)
 
         if np.any(df_elast.isna()):
             raise ValueError('NA values in elast_cols')
@@ -504,7 +504,7 @@ class Tobacco:
             raise ValueError('No diseases with RRs')
 
         df.insert(0, 'year_start', self._year_start)
-        df.insert(1, 'year_end', self._year_end)
+        df.insert(1, 'year_end', self._year_end + 1)
 
         # Replace 'age' with age groups.
         df = df.rename(columns={'age': 'age_group_start'})
@@ -643,7 +643,7 @@ class Tobacco:
 
         df = df.drop(columns='year')
         df.insert(0, 'year_start', self._year_start)
-        df.insert(1, 'year_end', self._year_end)
+        df.insert(1, 'year_end', self._year_end + 1)
 
         # Replace 'age' with age groups.
         df = df.rename(columns={'age': 'age_group_start'})
@@ -670,7 +670,7 @@ class Tobacco:
 
         df = df.drop(columns='year')
         df.insert(0, 'year_start', self._year_start)
-        df.insert(1, 'year_end', self._year_end)
+        df.insert(1, 'year_end', self._year_end + 1)
 
         # Replace 'age' with age groups.
         df = df.rename(columns={'age': 'age_group_start'})

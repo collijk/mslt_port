@@ -84,7 +84,7 @@ class Population:
         # These values apply at each year of the simulation, so we only need
         # to define a single bin.
         df.insert(0, 'year_start', self.year_start)
-        df.insert(1, 'year_end', self.year_end)
+        df.insert(1, 'year_end', self.year_end + 1)
 
         df = df.sort_values(['year_start', 'age_group_start', 'sex'])
         df = df.reset_index(drop=True)
