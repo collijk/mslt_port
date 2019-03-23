@@ -590,6 +590,21 @@ class Tobacco:
         """
         df = self._tax.copy()
 
+        # Replace 'year' with year bins.
+        df = df.rename(columns={'year': 'year_start'})
+        df.insert(df.columns.get_loc('year_start') + 1,
+                  'year_end',
+                  df['year_start'] + 1)
+
+        # Replace 'age' with age groups.
+        df = df.rename(columns={'age': 'age_group_start'})
+        df.insert(df.columns.get_loc('age_group_start') + 1,
+                  'age_group_end',
+                  df['age_group_start'] + 1)
+
+        df = df.sort_values(['year_start', 'age_group_start', 'sex'])
+        df = df.reset_index(drop=True)
+
         if np.any(df.isna()):
             raise ValueError('NA values found in tobacco tax effects data')
 
@@ -613,13 +628,20 @@ class Tobacco:
             df = self._dis_rr_dict[disease].copy()
             df.insert(0, 'year', 0)
 
-        tables = []
-        for year in range(self._year_start, self._year_end + 1):
-            df['year'] = year
-            tables.append(df.copy())
+        # Replace 'year' with year bins.
+        df = df.rename(columns={'year': 'year_start'})
+        df.insert(df.columns.get_loc('year_start') + 1,
+                  'year_end',
+                  self._year_end + 1)
 
-        df = pd.concat(tables)
-        df = df.sort_values(['year', 'age', 'sex']).reset_index(drop=True)
+        # Replace 'age' with age groups.
+        df = df.rename(columns={'age': 'age_group_start'})
+        df.insert(df.columns.get_loc('age_group_start') + 1,
+                  'age_group_end',
+                  df['age_group_start'] + 1)
+
+        df = df.sort_values(['year_start', 'age_group_start', 'sex'])
+        df = df.reset_index(drop=True)
 
         if np.any(df.isna()):
             raise ValueError('NA values found in tobacco disease RR data')

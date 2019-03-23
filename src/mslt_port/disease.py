@@ -359,13 +359,17 @@ class Acute:
     def get_expected_rates(self):
         years = range(self._year_start, self._year_end + 1)
         tables = []
-        df_tmp = self._data.copy()
+        df = self._data.copy()
 
-        for counter, year in enumerate(years):
-            df_tmp['year'] = year
-            tables.append(df_tmp.copy())
+        df = df.rename(columns={'age': 'age_group_start'})
+        df.insert(df.columns.get_loc('age_group_start') + 1,
+                      'age_group_end',
+                      df['age_group_start'] + 1)
 
-        df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
+        df.insert(0, 'year_start', self._year_start)
+        df.insert(1, 'year_end', self._year_end + 1)
+
+        df = df.sort_values(['year_start', 'age_group_start', 'sex'])
         df = df.reset_index(drop=True)
 
         return df
