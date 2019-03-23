@@ -69,58 +69,39 @@ def assemble_chd_only(num_draws):
         dist_chd_i, dist_chd_apc,
         smp_chd_i, smp_chd_apc)
     art.write('chronic_disease.CHD.incidence',
-              define_bin_edges(chd_i))
+              check_for_bin_edges(chd_i))
     # 'chronic_disease.{}.remission'
     chd_r = disease.sample_r_from(
         dist_chd_r, dist_chd_apc,
         smp_chd_r, smp_chd_apc)
     art.write('chronic_disease.CHD.remission',
-              define_bin_edges(chd_r))
+              check_for_bin_edges(chd_r))
     # 'chronic_disease.{}.mortality'
     chd_f = disease.sample_f_from(
         dist_chd_f, dist_chd_apc,
         smp_chd_f, smp_chd_apc)
     art.write('chronic_disease.CHD.mortality',
-              define_bin_edges(chd_f))
+              check_for_bin_edges(chd_f))
     # 'chronic_disease.{}.morbidity'
     chd_yld = disease.sample_yld_from(
         dist_chd_yld, dist_chd_apc,
         smp_chd_yld, smp_chd_apc)
     art.write('chronic_disease.CHD.morbidity',
-              define_bin_edges(chd_yld))
+              check_for_bin_edges(chd_yld))
     # 'chronic_disease.{}.prevalence'
     chd_prev = disease.sample_prevalence_from(
         dist_chd_prev, smp_chd_prev)
     art.write('chronic_disease.CHD.prevalence',
-              define_bin_edges(chd_prev))
+              check_for_bin_edges(chd_prev))
 
 
-def define_bin_edges(df):
+def check_for_bin_edges(df):
     """
-    Define the lower (inclusive) and upper (exclusive) bounds for the 'age'
-    and 'year' columns.
+    Check that lower (inclusive) and upper (exclusive) bounds for year and age
+    are defined as table columns.
     """
 
     if 'age_group_start' in df.columns and 'year_start' in df.columns:
-        print('Table already has bins')
         return df
     else:
-        print('Table does not have bins')
-
-    if 'age_group_start' not in df.columns:
-        df = df.rename(columns={'age': 'age_group_start'})
-        df.insert(df.columns.get_loc('age_group_start') + 1,
-                  'age_group_end',
-                  df['age_group_start'] + 1)
-
-    if 'year_start' not in df.columns:
-        if 'year' not in df.columns:
-            print('No year in table')
-            print(df.head().to_string())
-            raise ValueError('')
-        df = df.rename(columns={'year': 'year_start'})
-        df.insert(df.columns.get_loc('year_start') + 1,
-                  'year_end',
-                  df['year_start'] + 1)
-
-    return df
+        raise ValueError('Table does not have bins')
