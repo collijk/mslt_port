@@ -488,6 +488,10 @@ class Tobacco:
             # columns.
             df_rr = wide_to_long(df_rr)
 
+            # NOTE: add the 'Disease_no' and 'Disease_yes' columns.
+            df_rr.insert(3, '{}_no'.format(key), 1.0)
+            df_rr.insert(4, '{}_yes'.format(key), df_rr[rr_col])
+
             if len(tables) > 0:
                 # Remove age and sex columns, so that the RR tables for each
                 # disease can be joined (otherwise these columns will be
