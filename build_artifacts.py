@@ -1118,26 +1118,6 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
     print(artifact_file)
 
 
-def always_use_initial_rates(data):
-    """
-    Use the initial incidence and remission rates in all future years, rather
-    than using projected rates into the future.
-    """
-    year_min = data['year'].min()
-    year_max = data['year'].max()
-
-    tables = []
-    df = data.loc[data['year'] == year_min].copy()
-
-    for year in range(year_min, year_max + 1):
-        df.loc[:, 'year'] = year
-        tables.append(df.copy())
-    data = pd.concat(tables)
-
-    data = data.sort_values(['year', 'age', 'sex']).reset_index(drop=True)
-    return data
-
-
 def update_prevalence(data, exposure, years_to_baseline=0):
     """
     Reduce the delay between remission and a relative risk of 1.0, collapsing
