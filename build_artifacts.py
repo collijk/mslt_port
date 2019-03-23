@@ -18,6 +18,7 @@ from vivarium_public_health.dataset_manager import hdf
 from vivarium_public_health.dataset_manager.artifact import Artifact
 
 import mslt_port
+from mslt_port import Normal, LogNormal, Beta
 
 
 def parser():
@@ -780,22 +781,106 @@ def define_bin_edges(df):
     return df
 
 
+def print_basic_comparison(df, compare):
+    print('df')
+    print(df.head().to_string())
+    print('compare')
+    print(compare.head().to_string())
+    merged = df.merge(compare, indicator=True, how='outer')
+    left = merged.loc[merged['_merge'] == 'left_only']
+    right = merged.loc[merged['_merge'] == 'right_only']
+    print(left.head(4).to_string())
+    print(left.tail(4).to_string())
+    print(right.head(4).to_string())
+    print(right.tail(4).to_string())
+    print()
+
+
+def compare_tables(path, df, compare):
+    if 'age' in compare.columns and 'year' in compare.columns:
+        print('Old comparison: {}'.format(path))
+        is_equal = df.equals(compare)
+        if not is_equal:
+            print('DATA DO NOT MATCH: {}'.format(path))
+            print_basic_comparison(df, compare)
+            raise ValueError()
+    else:
+        # NOTE: we need to compare the non-bin-edge tables to draw #0
+        # from tables with bin edges. So we need to iterate over each
+        # year, pull out the rate(s), and compare them to draw #0 from the
+        # correct year bin.
+        is_equal = True
+        # NOTE: assume that each age group only spans a single year
+        # (i.e., that age_group_end == age_group_start + 1)
+        compare = compare.rename(columns={
+            'age_group_start': 'age',
+        })
+        compare = compare.drop(columns='age_group_end')
+        # Determine which columns we will be comparing.
+        cmp_cols = [c for c in compare.columns if c in df.columns]
+        if not any(c not in ['age', 'sex'] for c in cmp_cols):
+            raise ValueError('No value column to compare')
+        # Treat all non-index columns as numeric for the purpose of
+        # *approximate* comparison.
+        index_cols = ['age', 'sex']
+        num_cols = [c for c in cmp_cols if c not in index_cols]
+        show_ignored_cols = False
+        if show_ignored_cols:
+            ign_cols = [c for c in compare.columns if c not in cmp_cols]
+            ign_cols2 = [c for c in df.columns if c not in cmp_cols]
+            if not set(ign_cols) <= {'year_start', 'year_end', 'draw'}:
+                print('{}: {}'.format(path, ign_cols))
+            if set(ign_cols2) != {'year'}:
+                print('{}: {}'.format(path, ign_cols2))
+        # Identify when we're comparing to an expected rate table.
+        if 'draw' not in compare.columns:
+            print('NO DRAWS FOR {}'.format(path))
+        # Compare the data for each year in turn.
+        for year in df['year'].unique():
+            mask = ((compare['year_start'] <= year)
+                    & (compare['year_end'] > year))
+            if 'draw' in compare.columns:
+                mask = mask & (compare['draw'] == 0)
+            # Extract the relevant subset of both tables.
+            df_in = df.loc[df['year'] == year, cmp_cols]
+            df_in = df_in.reset_index(drop=True)
+            df_cmp = compare.loc[mask, cmp_cols].reset_index(drop=True)
+            # Check for NA values (such as NaN and None).
+            if np.any(df_in.isna()):
+                raise ValueError('NAs in input table')
+            if np.any(df_cmp.isna()):
+                raise ValueError('NAs in comparison table')
+            # Ensure the two tables have identical dimensions.
+            if df_in.shape != df_cmp.shape:
+                print(year)
+                print(df_in.head(1).to_string())
+                print(df_cmp.head(1).to_string())
+                msg ='Incompatible shapes: {} and {}'.format(
+                    df_in.shape, df_cmp.shape)
+                raise ValueError(msg)
+            else:
+                # Compare the index columns for exact equality.
+                result = df_in.loc[:, index_cols].equals(
+                    df_cmp.loc[:, index_cols])
+                # Compare the numeric columns for approximate equality.
+                result = result and np.allclose(
+                    df_in.loc[:, num_cols],
+                    df_cmp.loc[:, num_cols])
+                if not result:
+                    msg = 'Numerical columns differ: {}'.format(num_cols)
+                    raise ValueError(msg)
+            is_equal = is_equal and result
+            if not result:
+                print_basic_comparison(df_in, df_cmp)
+                raise ValueError('Data for {} do not match'.format(year))
+
+
 def write_table(artifact, path, df, bin_edges=False, verbose=False, compare=None):
     """
     Add a data table to an existing artifact.
     """
     if compare is not None:
-        is_equal = df.equals(compare)
-        if not is_equal:
-            print('DATA DO NOT MATCH: {}'.format(path))
-            merged = df.merge(compare, indicator=True, how='outer')
-            left = merged.loc[merged['_merge'] == 'left_only']
-            right = merged.loc[merged['_merge'] == 'right_only']
-            print(left.head(4).to_string())
-            print(left.tail(4).to_string())
-            print(right.head(4).to_string())
-            print(right.tail(4).to_string())
-            print()
+        compare_tables(path, df, compare)
     else:
         print('NOT COMPARING: {}'.format(path))
     if bin_edges:
@@ -837,13 +922,22 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
 
     art = Artifact(artifact_file)
 
+    prng = np.random.RandomState(seed=49430)
+    num_draws = 5
+
+    def new_samples():
+        return prng.random_sample(num_draws)
+
+    yld_dist = LogNormal(sd_pcnt=10)
+    yld_smp = new_samples()
+
     # Store the basic population data.
     write_table(art, 'population.structure',
                 get_population(df_base), bin_edges=False,
                 compare=popn.get_population())
     write_table(art, 'cause.all_causes.disability_rate',
                 get_disability_rate(df_base), bin_edges=bin_edges,
-                compare=popn.get_disability_rate())
+                compare=popn.sample_disability_rate_from(yld_dist, yld_smp))
     write_table(art, 'cause.all_causes.mortality',
                 get_mortality_rate(df_base), bin_edges=bin_edges,
                 compare=popn.get_mortality_rate())
@@ -857,67 +951,118 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
                       if c.endswith(acu_suffix)]
 
     for disease in chronic_diseases:
-        cmp_dis = dis.chronic[disease].get_expected_rates()
-        cmp_dis = cmp_dis.rename(columns={
+        rename_tbl = {
             'i': '{}_i'.format(disease),
             'r': '{}_r'.format(disease),
             'f': '{}_f'.format(disease),
             'DR': '{}_DR'.format(disease),
             'prev': '{}_prev'.format(disease),
-        })
+        }
+        apc_samples = new_samples()
+        i_samples = new_samples()
+        r_samples = new_samples()
+        f_samples = new_samples()
+        yld_samples = new_samples()
+        prev_samples = new_samples()
+        irfprev_dist = Normal(sd_pcnt=5)
+        yld_dist = Normal(sd_pcnt=10)
+        apc_dist = Normal(sd_pcnt=0.5)
+
+        cmp_cols = ['year_start', 'year_end',
+                    'age_group_start', 'age_group_end',
+                    'sex', 'draw']
         inc = '{}_i'.format(disease)
+        cmp_dis = dis.chronic[disease].sample_i_from(
+            irfprev_dist, apc_dist, i_samples, apc_samples)
+        cmp_dis = cmp_dis.rename(columns=rename_tbl)
         write_table(art, 'chronic_disease.{}.incidence'.format(disease),
                     df_dis.loc[:, ['year', 'age', 'sex', inc]],
                     bin_edges=bin_edges,
-                    compare=cmp_dis.loc[:, ['year', 'age', 'sex', inc]])
+                    compare=cmp_dis.loc[:, cmp_cols + [inc]])
+        cmp_dis = dis.chronic[disease].sample_r_from(
+            irfprev_dist, apc_dist, r_samples, apc_samples)
+        cmp_dis = cmp_dis.rename(columns=rename_tbl)
         rem = '{}_r'.format(disease)
         write_table(art, 'chronic_disease.{}.remission'.format(disease),
                     df_dis.loc[:, ['year', 'age', 'sex', rem]],
                     bin_edges=bin_edges,
-                    compare=cmp_dis.loc[:, ['year', 'age', 'sex', rem]])
+                    compare=cmp_dis.loc[:, cmp_cols + [rem]])
         cfr = '{}_f'.format(disease)
+        cmp_dis = dis.chronic[disease].sample_f_from(
+            irfprev_dist, apc_dist, f_samples, apc_samples)
+        cmp_dis = cmp_dis.rename(columns=rename_tbl)
         write_table(art, 'chronic_disease.{}.mortality'.format(disease),
                     df_dis.loc[:, ['year', 'age', 'sex', cfr]],
                     bin_edges=bin_edges,
-                    compare=cmp_dis.loc[:, ['year', 'age', 'sex', cfr]])
+                    compare=cmp_dis.loc[:, cmp_cols + [cfr]])
+        cmp_dis = dis.chronic[disease].sample_yld_from(
+            yld_dist, apc_dist, yld_samples, apc_samples)
+        cmp_dis = cmp_dis.rename(columns=rename_tbl)
         mbd = '{}_DR'.format(disease)
         write_table(art, 'chronic_disease.{}.morbidity'.format(disease),
                     df_dis.loc[:, ['year', 'age', 'sex', mbd]],
                     bin_edges=bin_edges,
-                    compare=cmp_dis.loc[:, ['year', 'age', 'sex', mbd]])
+                    compare=cmp_dis.loc[:, cmp_cols + [mbd]])
+        cmp_dis = dis.chronic[disease].sample_prevalence_from(
+            irfprev_dist, prev_samples)
+        cmp_dis = cmp_dis.rename(columns=rename_tbl)
         prv = '{}_prev'.format(disease)
+        # NOTE: only record the prevalence for the first year.
+        df_dis = df_dis.loc[df_dis['year'] == df_dis['year'].min()]
         write_table(art, 'chronic_disease.{}.prevalence'.format(disease),
                     df_dis.loc[:, ['year', 'age', 'sex', prv]],
                     bin_edges=bin_edges,
-                    compare=cmp_dis.loc[:, ['year', 'age', 'sex', prv]])
+                    compare=cmp_dis.loc[:, cmp_cols + [prv]])
 
     for disease in acute_diseases:
-        cmp_dis = dis.acute[disease].get_expected_rates()
-        cmp_dis = cmp_dis.rename(columns={
+        rename_tbl = {
             'excess_mortality': '{}_excess_mortality'.format(disease),
             'disability_rate': '{}_disability_rate'.format(disease),
-        })
+        }
+        f_dist = Normal(sd_pcnt=10)
+        yld_dist = Normal(sd_pcnt=10)
+        f_samples = new_samples()
+        yld_samples = new_samples()
+
+        cmp_cols = ['year_start', 'year_end',
+                    'age_group_start', 'age_group_end',
+                    'sex', 'draw']
+        cmp_dis = dis.acute[disease].sample_excess_mortality_from(
+            f_dist, f_samples)
+        cmp_dis = cmp_dis.rename(columns=rename_tbl)
         emr = '{}_excess_mortality'.format(disease)
         write_table(art, 'acute_disease.{}.mortality'.format(disease),
                     df_dis.loc[:, ['year', 'age', 'sex', emr]],
                     bin_edges=bin_edges,
-                    compare=cmp_dis.loc[:, ['year', 'age', 'sex', emr]])
+                    compare=cmp_dis.loc[:, cmp_cols + [emr]])
+        cmp_dis = dis.acute[disease].sample_disability_from(
+            yld_dist, yld_samples)
+        cmp_dis = cmp_dis.rename(columns=rename_tbl)
         mbd = '{}_disability_rate'.format(disease)
         write_table(art, 'acute_disease.{}.morbidity'.format(disease),
                     df_dis.loc[:, ['year', 'age', 'sex', mbd]],
                     bin_edges=bin_edges,
-                    compare=cmp_dis.loc[:, ['year', 'age', 'sex', mbd]])
+                    compare=cmp_dis.loc[:, cmp_cols + [mbd]])
 
     for exposure in ['tobacco']:
-        cmp_rates = tob.get_expected_rates()
         incidence = df_tob.loc[:, ['year', 'age', 'sex', 'incidence']]
         remission = df_tob.loc[:, ['year', 'age', 'sex', 'remission']]
+
+        ir_dist = Beta(sd_pcnt=20)
+        i_samples = new_samples()
+        r_samples = new_samples()
+
+        cmp_cols = ['year_start', 'year_end',
+                    'age_group_start', 'age_group_end',
+                    'sex', 'draw']
+        cmp_rates = tob.sample_i_from(ir_dist, i_samples)
         write_table(art, 'risk_factor.{}.incidence'.format(exposure),
                     incidence, bin_edges=bin_edges,
-                    compare=cmp_rates[['year', 'age', 'sex', 'incidence']])
+                    compare=cmp_rates[cmp_cols + ['incidence']])
+        cmp_rates = tob.sample_r_from(ir_dist, r_samples)
         write_table(art, 'risk_factor.{}.remission'.format(exposure),
                     remission, bin_edges=bin_edges,
-                    compare=cmp_rates[['year', 'age', 'sex', 'remission']])
+                    compare=cmp_rates[cmp_cols + ['remission']])
 
         cmp_rr_m = tob.get_expected_mortality_rr()
         if zero_delay:
@@ -931,7 +1076,9 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
                     df_tob_rr_m, bin_edges=bin_edges,
                     compare=cmp_rr_m)
 
-        cmp_rr_d = tob.get_expected_disease_rr(None)
+        diseases = list(dis.chronic.keys()) + list(dis.acute.keys())
+        samples_tbl = {name: new_samples() for name in diseases}
+        cmp_rr_d = tob.sample_disease_rr_from(samples_tbl)
         if zero_delay:
             # Instantly revert to a relative risk of 1.0.
             df_tob_rr_d = update_disease_rr(df_tob_rr_d, years_to_baseline=0)
@@ -953,15 +1100,20 @@ def build_artifact(artifact_file, df_base, df_dis, df_tob, df_tob_prev,
                     df_tob_prev, bin_edges=bin_edges,
                     compare=cmp_prev)
 
-        cmp_tax = tob.get_expected_tax_effects()
+        elast_dist = Normal(sd_pcnt=20)
+        samples = new_samples()
+        cmp_tax = tob.sample_tax_effects_from(elast_dist, samples)
+        cmp_cols = ['year_start', 'year_end',
+                    'age_group_start', 'age_group_end',
+                    'sex', 'draw']
         tax_inc = df_tob_tax[['year', 'age', 'sex', 'incidence_effect']]
         tax_rem = df_tob_tax[['year', 'age', 'sex', 'remission_effect']]
         write_table(art, 'risk_factor.{}.tax_effect_incidence'.format(exposure),
                     tax_inc, bin_edges=bin_edges,
-                    compare=cmp_tax[['year', 'age', 'sex', 'incidence_effect']])
+                    compare=cmp_tax[cmp_cols + ['incidence_effect']])
         write_table(art, 'risk_factor.{}.tax_effect_remission'.format(exposure),
                     tax_rem, bin_edges=bin_edges,
-                    compare=cmp_tax[['year', 'age', 'sex', 'remission_effect']])
+                    compare=cmp_tax[cmp_cols + ['remission_effect']])
 
     print(artifact_file)
 
