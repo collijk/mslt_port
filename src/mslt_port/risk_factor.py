@@ -1012,6 +1012,12 @@ class Tobacco:
             for ix, col_name in enumerate(col_names):
                 out[col_name] = dis_df.iloc[:, ix]
 
+            # NOTE: there are values > 1.0 for the RR For younger ages, where
+            # the actual RR is set to 1.0 in the full table.
+            yes_col = '{}_yes'.format(disease)
+            post_0_col = '{}_0'.format(disease)
+            out[yes_col] = out[post_0_col]
+
             dis_df.insert(0, 'sex', sex)
             dis_df.insert(0, 'age', age)
             dis_df = dis_df.sort_values(['age', 'sex']).reset_index(drop=True)
