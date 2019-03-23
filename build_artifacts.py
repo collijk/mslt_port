@@ -659,6 +659,11 @@ def get_tobacco_diseases_rr(data_dir, df_tob):
         col_names = ['{}_{}'.format(disease, c) for c in dis_cols]
         for ix, col_name in enumerate(col_names):
             out[col_name] = dis_df.iloc[:, ix]
+        # NOTE: there are values > 1.0 for the RR For younger ages, where the
+        # actual RR is set to 1.0 in the full table.
+        yes_col = '{}_yes'.format(disease)
+        post_0_col = '{}_0'.format(disease)
+        out[yes_col] = out[post_0_col]
 
     tables = []
     for year in range(year_start, year_end + 1):
