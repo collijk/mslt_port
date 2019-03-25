@@ -1,5 +1,6 @@
 """Run multiple simulations in parallel."""
 
+import datetime
 import itertools
 import logging
 import multiprocessing
@@ -173,7 +174,8 @@ def run_nth_draw(model_specification_file, draw_number):
         have multiple draws.
     """
     logger = logging.getLogger(__name__)
-    logger.info('Simulating draw #{} for {} ...'.format(
+    logger.info('{} Simulating draw #{} for {} ...'.format(
+        datetime.datetime.now().strftime("%H:%M:%S"),
         draw_number, model_specification_file))
     spec = config.build_model_specification(model_specification_file)
     spec.configuration.input_data.input_draw_number = draw_number
@@ -182,6 +184,9 @@ def run_nth_draw(model_specification_file, draw_number):
     simulation.setup()
 
     metrics, final_state = engine.run(simulation)
+    logger.info('{} Simulation for draw #{} complete'.format(
+        datetime.datetime.now().strftime("%H:%M:%S"),
+        draw_number))
 
     return metrics, final_state
 
