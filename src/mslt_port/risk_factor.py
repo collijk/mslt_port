@@ -1,5 +1,6 @@
 """Build risk-factor data tables."""
 
+import logging
 import pandas as pd
 import numpy as np
 import pathlib
@@ -423,15 +424,16 @@ class Tobacco:
         :param samples_tbl: A dictionary that maps disease names to samples
             from the half-open interval [0, 1).
         """
+        logger = logging.getLogger(__name__)
         tables = []
 
         for key, table in self._dis_rr_dict.items():
             if key not in self._df_gamma.columns:
-                print('Ignoring {} (no gamma)'.format(key))
+                logger.info('Ignoring {} (no gamma)'.format(key))
                 continue
 
             if key not in samples_tbl:
-                print('Ignoring {} (no samples)'.format(key))
+                logger.info('Ignoring {} (no samples)'.format(key))
                 continue
 
             # Extract the relative risk for current smokers.
@@ -521,11 +523,12 @@ class Tobacco:
         :param prng: The random number generator.
         :param n: The number of samples to draw.
         """
+        logger = logging.getLogger(__name__)
         tables = []
 
         for key, table in self._dis_rr_dict.items():
             if key not in self._df_gamma.columns:
-                print('Ignoring {}'.format(key))
+                logger.info('Ignoring {}'.format(key))
                 continue
 
             # Extract the relative risk for current smokers.
