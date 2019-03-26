@@ -4,31 +4,19 @@ import pandas as pd
 import numpy as np
 import pathlib
 
-from .uncertainty import (LogNormalRawSD, sample_column, sample_column_from,
-                          wide_to_long)
+from .uncertainty import (LogNormalRawSD, sample_column, sample_column_long)
 
 
-def post_cessation_rr(disease, rr_data, rr_cols, num_states, gamma):
+def post_cessation_rr(disease, rr_data, rr_col, num_states, gamma):
     # NOTE: this will preserve the condition that draw 0 is the mean.
-    tables = [rr_data]
     for n in range(1, num_states):
-        rr_base = rr_data.loc[:, rr_cols].values
-        rr_n = 1 + (rr_base - 1) * np.exp(- gamma.values * n)[..., np.newaxis]
-        df_tmp = pd.DataFrame(rr_n)
-        # Name each draw appropriately.
-        col_names = ['{}_{}_draw_{}'.format(disease, n, ix)
-                     for ix in range(len(rr_cols))]
-        df_tmp.columns = col_names
-        tables.append(df_tmp)
+        rr_base = rr_data.loc[:, rr_col].values
+        col_name = '{}_{}'.format(disease, n)
+        rr_data[col_name] = 1 + (rr_base - 1) * np.exp(- gamma.values * n)
 
     # Add the RR = 1.0 for the final (absorbing) state.
-    df_tmp = pd.DataFrame(np.ones(rr_n.shape))
-    col_names = ['{}_{}_draw_{}'.format(disease, num_states, ix)
-                 for ix in range(len(rr_cols))]
-    df_tmp.columns = col_names
-    tables.append(df_tmp)
-
-    rr_data = pd.concat(tables, axis=1)
+    col_name = '{}_{}'.format(disease, num_states)
+    rr_data[col_name] = 1.0
 
     if np.any(rr_data.isna()):
         raise ValueError('NA values in post-cessation RRs')
@@ -63,12 +51,12 @@ def sample_tobacco_rate(year_start, year_end, data, rate_name, prev_data,
         data.loc[data['age'] == 20, 'incidence'] = initial_rate
 
     # Sample the initial rate for each cohort.
-    df = sample_column(data, value_col, prng, rate_dist, n)
+    df = sample_column_long(data, value_col, prng, rate_dist, n)
 
     df.insert(0, 'year_start', 0)
     df.insert(1, 'year_end', 0)
 
-    df_index_cols = ['year_start', 'year_end', 'age', 'sex']
+    df_index_cols = ['year_start', 'year_end', 'age', 'sex', 'draw']
     apc_index_cols = ['age', 'sex']
 
     tables = []
@@ -140,12 +128,12 @@ def sample_tobacco_rate_from(year_start, year_end, data, rate_name, prev_data,
         data.loc[data['age'] == 20, 'incidence'] = initial_rate
 
     # Sample the initial rate for each cohort.
-    df = sample_column_from(data, value_col, rate_dist, samples)
+    df = sample_column_long(data, value_col, rate_dist, samples)
 
     df.insert(0, 'year_start', 0)
     df.insert(1, 'year_end', 0)
 
-    df_index_cols = ['year_start', 'year_end', 'age', 'sex']
+    df_index_cols = ['year_start', 'year_end', 'age', 'sex', 'draw']
     apc_index_cols = ['age', 'sex']
 
     tables = []
@@ -153,11 +141,12 @@ def sample_tobacco_rate_from(year_start, year_end, data, rate_name, prev_data,
 
     if apc_data is not None and value_col in apc_data.columns:
         data_columns = [c for c in df.columns if c not in df_index_cols]
-        apc_values = apc_data.loc[:, value_col].values
+        apc_df = apc_data.merge(df.loc[:, df_index_cols])
+        apc_values = apc_df.loc[:, value_col].values
         base_values = df.loc[:, data_columns].copy().values
 
         initial_rate = df.loc[:, data_columns].copy().values
-        frac = (1 - apc_data.loc[:, value_col].values)
+        frac = (1 - apc_df.loc[:, value_col].values)
 
         # Calculate the correlated samples for each cohort at each year.
         for counter, year in enumerate(years):
@@ -185,7 +174,7 @@ def sample_tobacco_rate_from(year_start, year_end, data, rate_name, prev_data,
               'age_group_end',
               df['age_group_start'] + 1)
 
-    df = df.sort_values(['year_start', 'age_group_end', 'sex'])
+    df = df.sort_values(['year_start', 'age_group_start', 'sex', 'draw'])
     df = df.reset_index(drop=True)
 
     return df
@@ -213,9 +202,9 @@ class Tobacco:
         :param elast_dist: The sampling distribution.
         :param samples: Samples drawn from the half-open interval [0, 1).
         """
-        df_elast = sample_column_from(self._df_elast, 'Elasticity',
+        df_elast = sample_column_long(self._df_elast, 'Elasticity',
                                       elast_dist, samples)
-        return wide_to_long(df_elast)
+        return df_elast
 
     def scale_price_elasticity_from(self, df_elast, mean_scale, scale_dist,
                                     samples):
@@ -468,10 +457,13 @@ class Tobacco:
             num_states = len([c for c in table.columns if c not in cols])
 
             # Sample the relative risk for current smokers.
-            df_rr = sample_column_from(table.loc[:, cols], rr_col, rr_dist,
+            df_rr = sample_column_long(table.loc[:, cols], rr_col, rr_dist,
                                        samples_tbl[key])
             rr_cols = [col for col in df_rr.columns
-                       if col not in ['age', 'sex']]
+                       if col not in ['age', 'sex', 'draw']]
+
+            if len(rr_cols) != 1:
+                raise ValueError('Expected one column: {}'.format(rr_cols))
 
             # Determine the value of gamma for each cohort.
             # It is only indexed by age, so we need to merge it with the index
@@ -482,15 +474,13 @@ class Tobacco:
             gamma = df_gamma['gamma']
 
             # Calculate how this RR decays to 1.0, post-cessation.
-            df_rr = post_cessation_rr(key, df_rr, rr_cols, num_states, gamma)
-
-            # Important: convert from wide to long *before* removing the index
-            # columns.
-            df_rr = wide_to_long(df_rr)
+            df_rr = post_cessation_rr(key, df_rr, rr_col, num_states, gamma)
 
             # NOTE: add the 'Disease_no' and 'Disease_yes' columns.
-            df_rr.insert(3, '{}_no'.format(key), 1.0)
-            df_rr.insert(4, '{}_yes'.format(key), df_rr[rr_col])
+            df_rr.insert(df_rr.columns.get_loc(rr_col), '{}_no'.format(key),
+                         1.0)
+            df_rr.insert(df_rr.columns.get_loc(rr_col), '{}_yes'.format(key),
+                         df_rr[rr_col])
 
             if len(tables) > 0:
                 # Remove age and sex columns, so that the RR tables for each
@@ -758,7 +748,7 @@ class Tobacco:
                                       self._initial_rates, 'incidence',
                                       self._prev, self._apc, 1e3,
                                       rate_dist, samples)
-        return wide_to_long(df)
+        return df
 
     def sample_r_from(self, rate_dist, samples):
         """Sample the remission rate."""
@@ -766,7 +756,7 @@ class Tobacco:
                                       self._initial_rates, 'remission',
                                       self._prev, None, 0,
                                       rate_dist, samples)
-        return wide_to_long(df)
+        return df
 
     def sample_i(self, prng, rate_dist, n):
         """Sample the incidence rate."""

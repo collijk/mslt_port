@@ -133,6 +133,50 @@ def sample_column(data, column, prng, dist, n):
     return df
 
 
+def sample_column_long(data, column, dist, samples):
+    if len(samples.shape) != 1:
+        raise ValueError('Samples must be a one-dimensional array')
+    if np.any(samples < 0.0) or np.any(samples >= 1.0):
+        raise ValueError('Samples lie outside of [0, 1)')
+
+    index_cols = ['age', 'sex']
+    df = data.loc[:, index_cols].copy()
+
+    if np.any(df.isna()):
+        raise ValueError('NA values found, sampling column {}'.format(column))
+
+    # The number of draws, *also* including draw 0 (the mean value).
+    samples = np.insert(samples, 0, 0.5)
+    num_draws = len(samples)
+    df = df.reindex(df.index.repeat(num_draws)).reset_index(drop=True)
+
+    mean_values = data[column]
+    sample_shape = len(mean_values) * num_draws
+
+    all_zeros = len(mean_values.nonzero()[0]) == 0
+    if all_zeros:
+        sampled_values = np.zeros(sample_shape)
+    else:
+        # An array of shape ``(n, v)`` for ``n`` percentile samples
+        # and ``v`` mean values.
+        sampled_values = dist.correlated_samples(mean_values, samples)
+        sampled_values[:, mean_values == 0.0] = 0
+        # Ensure that draw #0 is the expected value.
+        sampled_values[0, :] = mean_values
+        sampled_values = sampled_values.reshape(sample_shape, order='F')
+
+    df['draw'] = np.tile(range(num_draws), len(mean_values))
+    df[column] = sampled_values
+
+    df = df.sort_values(['age', 'sex', 'draw'])
+    df = df.reset_index(drop=True)
+
+    if np.any(df.isna()):
+        raise ValueError('NA values found, sampling rate {}'.format(column))
+
+    return df
+
+
 def sample_column_from(data, column, dist, samples):
     """
     Draw correlated samples for a single column.
@@ -227,7 +271,7 @@ def sample_fixed_rate_from(year_start, year_end, data, rate_name,
     value_col = rate_name
 
     # Sample the initial rate for each cohort.
-    df = sample_column_from(data, value_col, rate_dist, samples)
+    df = sample_column_long(data, value_col, rate_dist, samples)
 
     df.insert(0, 'year_start', year_start)
     df.insert(1, 'year_end', year_end + 1)
@@ -236,7 +280,7 @@ def sample_fixed_rate_from(year_start, year_end, data, rate_name,
               'age_group_end',
               df['age_group_start'] + 1)
 
-    df = df.sort_values(['year_start', 'age_group_start', 'sex'])
+    df = df.sort_values(['year_start', 'age_group_start', 'sex', 'draw'])
     df = df.reset_index(drop=True)
 
     if np.any(df.isna()):

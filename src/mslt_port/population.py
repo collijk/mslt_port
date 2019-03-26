@@ -4,8 +4,7 @@ import pandas as pd
 import numpy as np
 import pathlib
 
-from .uncertainty import (sample_fixed_rate, sample_fixed_rate_from,
-                          wide_to_long)
+from .uncertainty import (sample_fixed_rate, sample_fixed_rate_from)
 
 
 class Population:
@@ -68,7 +67,7 @@ class Population:
         df = sample_fixed_rate_from(self.year_start, self.year_end,
                                     df, 'rate',
                                     rate_dist, samples)
-        return wide_to_long(df)
+        return df
 
     def get_disability_rate(self):
         """Return the disability rate for each stratum."""

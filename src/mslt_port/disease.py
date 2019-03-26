@@ -4,9 +4,8 @@ import pandas as pd
 import numpy as np
 import pathlib
 
-from .uncertainty import (sample_column, sample_column_from,
-                          sample_fixed_rate, sample_fixed_rate_from,
-                          wide_to_long)
+from .uncertainty import (sample_column, sample_column_long,
+                          sample_fixed_rate, sample_fixed_rate_from)
 
 
 def sample_disease_rate(year_start, year_end, data, rate_name, apc_data,
@@ -110,12 +109,12 @@ def sample_disease_rate_from(year_start, year_end, data, rate_name, apc_data,
     value_col = rate_name
 
     # Sample the initial rate for each cohort.
-    df = sample_column_from(data, value_col, rate_dist, rate_samples)
+    df = sample_column_long(data, value_col, rate_dist, rate_samples)
 
     df.insert(0, 'year_start', 0)
     df.insert(1, 'year_end', 0)
 
-    df_index_cols = ['year_start', 'year_end', 'age', 'sex']
+    df_index_cols = ['year_start', 'year_end', 'age', 'sex', 'draw']
     apc_index_cols = ['age', 'sex']
 
     tables = []
@@ -124,9 +123,10 @@ def sample_disease_rate_from(year_start, year_end, data, rate_name, apc_data,
     if apc_data is not None and value_col in apc_data.columns:
         # Sample the annual percent change for each cohort.
         apc = apc_data.loc[:, apc_index_cols + [value_col]]
-        apc = sample_column_from(apc, value_col, apc_dist, apc_samples)
+        # NOTE: this now adds a new column, 'draw'.
+        apc = sample_column_long(apc, value_col, apc_dist, apc_samples)
 
-        draw_columns = [c for c in apc.columns if c not in apc_index_cols]
+        draw_columns = [c for c in apc.columns if c not in apc_index_cols + ['draw']]
         data_columns = [c for c in df.columns if c not in df_index_cols]
         if set(draw_columns) != set(data_columns):
             raise ValueError('Inconsistent disease parameter draws')
@@ -160,7 +160,7 @@ def sample_disease_rate_from(year_start, year_end, data, rate_name, apc_data,
               'age_group_end',
               df['age_group_start'] + 1)
 
-    df = df.sort_values(['year_start', 'age_group_start', 'sex'])
+    df = df.sort_values(['year_start', 'age_group_start', 'sex', 'draw'])
     df = df.reset_index(drop=True)
 
     return df
@@ -260,7 +260,7 @@ class Chronic:
                                       self._apc, self._num_apc_years,
                                       rate_dist, apc_dist,
                                       rate_samples, apc_samples)
-        return wide_to_long(df)
+        return df
 
     def sample_r_from(self, rate_dist, apc_dist, rate_samples, apc_samples):
         """Sample the remission rate."""
@@ -269,7 +269,7 @@ class Chronic:
                                       self._apc, self._num_apc_years,
                                       rate_dist, apc_dist,
                                       rate_samples, apc_samples)
-        return wide_to_long(df)
+        return df
 
     def sample_f_from(self, rate_dist, apc_dist, rate_samples, apc_samples):
         """Sample the case fatality rate."""
@@ -278,7 +278,7 @@ class Chronic:
                                       self._apc, self._num_apc_years,
                                       rate_dist, apc_dist,
                                       rate_samples, apc_samples)
-        return wide_to_long(df)
+        return df
 
     def sample_yld_from(self, rate_dist, apc_dist, rate_samples, apc_samples):
         """Sample the years lost due to disability rate."""
@@ -287,18 +287,18 @@ class Chronic:
                                       self._apc, self._num_apc_years,
                                       rate_dist, apc_dist,
                                       rate_samples, apc_samples)
-        return wide_to_long(df)
+        return df
 
     def sample_prevalence_from(self, rate_dist, rate_samples):
         """Sample the initial prevalence of disease."""
-        df = sample_column_from(self._data, 'prev', rate_dist, rate_samples)
+        df = sample_column_long(self._data, 'prev', rate_dist, rate_samples)
         df.insert(0, 'year_start', self._year_start)
         df.insert(1, 'year_end', self._year_start + 1)
         df = df.rename(columns={'age': 'age_group_start'})
         df.insert(df.columns.get_loc('age_group_start') + 1,
                   'age_group_end',
                   df['age_group_start'] + 1)
-        return wide_to_long(df)
+        return df
 
     def sample_i(self, prng, rate_dist, apc_dist, n):
         """Sample the incidence rate."""
@@ -379,14 +379,14 @@ class Acute:
         col = 'excess_mortality'
         df = sample_fixed_rate_from(self._year_start, self._year_end,
                                     self._data, col, rate_dist, samples)
-        return wide_to_long(df)
+        return df
 
     def sample_disability_from(self, rate_dist, samples):
         """Sample the disability rate."""
         col = 'disability_rate'
         df = sample_fixed_rate_from(self._year_start, self._year_end,
                                     self._data, col, rate_dist, samples)
-        return wide_to_long(df)
+        return df
 
     def sample_excess_mortality(self, prng, rate_dist, n):
         """Sample the excess mortality rate."""
