@@ -16,7 +16,6 @@ components:
             disease:
                 - Disease('CHD')
                 - Disease('Stroke')
-                # - Disease('Type2Diabetes')
                 - Disease('LungCancer')
                 - Disease('HeadNeckCancer')
                 - Disease('OesophagusCancer')
@@ -37,13 +36,16 @@ components:
                 - {{ intervention_class }}()
             {% endif %}
             observer:
-                - MorbidityMortality('{{ basename }}_mm.csv')
-                - Disease('CHD', '{{ basename }}_chd.csv')
-                - TobaccoPrevalence('{{ basename }}_tobacco.csv')
+                - MorbidityMortality()
+                # - Disease('CHD')
+                # - TobaccoPrevalence()
 
 configuration:
     input_data:
-        artifact_path: tobacco_data_{{ population }}_decr_{{ delay }}yrs.hdf
+        artifact_path: mslt_tobacco_{{ population }}_{{ delay }}-years.hdf
+        input_draw_number: 0
+    observer:
+        output_prefix: {{ basename }}
     population:
         population_size: 44 # Male and female 5-year cohorts, aged 0 to 109.
     time:

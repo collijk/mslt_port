@@ -23,35 +23,41 @@ def main(args=None):
                                trim_blocks=True,
                                lstrip_blocks=True)
 
-    out_format = 'exp_{}_bau-{}_delay-{}_{}.yaml'
+    out_format = 'mslt_tobacco_{}_{}-years_{}_{}.yaml'
 
+    # The simulation populations.
     populations = ['non-maori', 'maori']
-    bau_labels = ['const', 'decr']
-    delay_labels = {0: '0yrs', 20: '20yrs'}
-    intervention = {'erad': 'TobaccoEradication',
-                    'tfg': 'TobaccoFreeGeneration',
-                    'tax': None}
+
+    # The simulation BAUs:
+    #   1. normal (20 years, decreasing tobacco prevalence)
+    #   2. immediate (0 years, decreasing tobacco prevalence)
+    #   3. constant (20 years, no cessation)
+    baus = [(20, 'decreasing'), (0, 'decreasing'), (20, 'constant')]
+
+    # The tobacco interventions:
+    interventions = {'erad': 'TobaccoEradication',
+                     'tfg': 'TobaccoFreeGeneration',
+                     'tax': None}
 
     for population in populations:
-        for bau_label in bau_labels:
-            for delay, delay_label in delay_labels.items():
-                for interv_label, interv_class in intervention.items():
-                    out_file = out_format.format(population, bau_label,
-                                                 delay_label, interv_label)
-                    basename = out_file[:-5]
-                    template_args = {
-                        'basename': basename,
-                        'population': population,
-                        'constant_prevalence': bau_label == 'const',
-                        'delay': delay,
-                        'intervention_class': interv_class,
-                        'tobacco_tax': interv_label == 'tax',
-                    }
-                    if interv_class is None:
-                        del template_args['intervention_class']
-                    out_content = template.render(template_args)
-                    with open(out_file, 'w') as f:
-                        f.write(out_content)
+        for (delay, tobacco_prev) in baus:
+            for interv_label, interv_class in interventions.items():
+                out_file = out_format.format(population, delay,
+                                             tobacco_prev, interv_label)
+                basename = out_file[:-5]
+                template_args = {
+                    'basename': basename,
+                    'population': population,
+                    'constant_prevalence': tobacco_prev == 'constant',
+                    'delay': delay,
+                    'intervention_class': interv_class,
+                    'tobacco_tax': interv_label == 'tax',
+                }
+                if interv_class is None:
+                    del template_args['intervention_class']
+                out_content = template.render(template_args)
+                with open(out_file, 'w') as f:
+                    f.write(out_content)
 
     return 0
 
