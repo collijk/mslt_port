@@ -35,4 +35,4 @@ configuration:
             # Reduce the all-cause mortality rate by 5%.
             scale: 0.95
     observer:
-        output_prefix: reduce_acmr # The prefix for output files.
+        output_prefix: mslt_reduce_acmr # The prefix for output files.
