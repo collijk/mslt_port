@@ -16,7 +16,6 @@ components:
             disease:
                 - Disease('CHD')
                 - Disease('Stroke')
-                # - Disease('Type2Diabetes')
                 - Disease('LungCancer')
                 - Disease('HeadNeckCancer')
                 - Disease('OesophagusCancer')
@@ -32,16 +31,17 @@ components:
                 - Disease('ThyroidCancer')
                 - Disease('COPD')
                 - AcuteDisease('LRTI')
-            intervention:
-                - TobaccoFreeGeneration()
             observer:
-                - MorbidityMortality('exp_maori_bau-decr_delay-20yrs_tfg_mm.csv')
-                - Disease('CHD', 'exp_maori_bau-decr_delay-20yrs_tfg_chd.csv')
-                - TobaccoPrevalence('exp_maori_bau-decr_delay-20yrs_tfg_tobacco.csv')
+                - MorbidityMortality()
+                # - Disease('CHD')
+                # - TobaccoPrevalence()
 
 configuration:
     input_data:
-        artifact_path: tobacco_data_maori_decr_20yrs.hdf
+        artifact_path: mslt_tobacco_maori_0-years.hdf
+        input_draw_number: 0
+    observer:
+        output_prefix: mslt_tobacco_maori_0-years_decreasing_tax
     population:
         population_size: 44 # Male and female 5-year cohorts, aged 0 to 109.
     time:
@@ -52,8 +52,8 @@ configuration:
         step_size: 365  # In days
     tobacco:
         constant_prevalence: False
-        tobacco_tax: False
-        delay: 20
+        tobacco_tax: True
+        delay: 0
         affects:
             # This is where the affected diseases should be listed.
             CHD:
@@ -69,7 +69,6 @@ configuration:
             PancreasCancer:
             StomachCancer:
             ThyroidCancer:
-            LRTI:
             Melanoma:
             Stroke:
     tobacco_eradication:
