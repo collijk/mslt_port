@@ -47,7 +47,11 @@ class Population:
         """Return the initial population size for each stratum."""
         cols = ['year', 'age', 'sex', 'population', 'bau_population']
         # Retain only those strata for whom the population size is defined.
-        return self._data.loc[self._data['population'].notna(), cols]
+        df = self._data.loc[self._data['population'].notna(), cols].copy()
+        # Decrease age by 1, because it will be increased by 1 at the start of
+        # the first time-step.
+        df['age'] -= 1
+        return df
 
     def sample_disability_rate(self, prng, rate_dist, n):
         df = self._data.rename(columns={'disability_rate': 'rate'})
