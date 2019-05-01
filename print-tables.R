@@ -4,8 +4,8 @@ SCRIPT <- 'print-tables.R'
 
 exp_tags_from_filename <- function(filename) {
     popn <- c('maori' = 'Maori', 'non-maori' = 'non-Maori')
-    bau <- c('bau-decr' = 'Decreasing', 'bau-const' = 'Constant')
-    delay <- c('delay-0yrs' = 'Immediate', 'delay-20yrs' = 'Delayed')
+    bau <- c('decreasing' = 'Decreasing', 'constant' = 'Constant')
+    delay <- c('0-years' = 'Immediate', '20-years' = 'Delayed')
     interv <- c('erad' = 'Tobacco Eradication',
                 'tax' = 'Tobacco Tax',
                 'tfg' = 'Tobacco-Free Generation')
@@ -22,26 +22,24 @@ exp_tags_from_filename <- function(filename) {
         valid <- FALSE
     }
     valid <- valid && endsWith(name_parts[num_parts], '.csv')
-    if (name_parts[1] == 'exp') {
-        valid <- valid && num_parts == 6
-        valid <- valid && name_parts[2] %in% names(popn)
-        valid <- valid && name_parts[3] %in% names(bau)
+    if (name_parts[1] == 'mslt' && name_parts[2] == 'tobacco') {
+        valid <- valid && num_parts == 7
+        valid <- valid && name_parts[3] %in% names(popn)
         valid <- valid && name_parts[4] %in% names(delay)
-        valid <- valid && name_parts[5] %in% names(interv)
+        valid <- valid && name_parts[5] %in% names(bau)
+        valid <- valid && name_parts[6] %in% names(interv)
         if (valid) {
-            result <- c('popn' = popn[[name_parts[2]]],
-                        'bau' = bau[[name_parts[3]]],
+            result <- c('popn' = popn[[name_parts[3]]],
                         'delay' = delay[[name_parts[4]]],
-                        'interv' = interv[[name_parts[5]]])
+                        'bau' = bau[[name_parts[5]]],
+                        'interv' = interv[[name_parts[6]]])
         }
-    } else if (name_parts[1] == 'tbl2') {
-        valid <- valid && num_parts == 5
-        valid <- valid && name_parts[2] %in% names(popn)
-        valid <- valid && name_parts[3] == 'reduce'
-        valid <- valid && name_parts[4] %in% names(reduce)
+    } else if (name_parts[1] == 'mslt' && name_parts[2] == 'reduce') {
+        valid <- valid && num_parts == 4
+        valid <- valid && name_parts[3] %in% names(reduce)
         if (valid) {
-            result <- c('popn' = popn[[name_parts[2]]],
-                        'reduce' = reduce[[name_parts[4]]])
+            result <- c('popn' = 'non-Maori',
+                        'reduce' = reduce[[name_parts[3]]])
         }
     }
 
@@ -68,7 +66,7 @@ load_csv_files <- function(filenames) {
 }
 
 load_data <- function(data_dir = '.') {
-    pattern <- 'exp_.*_mm\\.csv'
+    pattern <- 'mslt_tobacco_.*_mm\\.csv'
     filenames <- list.files(path = data_dir, pattern = pattern,
                             full.names = TRUE)
     df <- load_csv_files(filenames)
@@ -97,9 +95,6 @@ comparison_table <- function(df, column, ix_columns, prec = 6) {
 print_LY_HALY_ACMR_YLD_table <- function(df) {
     prev_width <- getOption('width')
     options(width = 1e3)
-
-    ## Important: keep only every 5th cohort!
-    df <- df[df$year_of_birth %% 5 == 4, ]
 
     common_cols <- c('age', 'sex', 'year_of_birth',
                      'popn', 'bau', 'delay', 'interv')
@@ -202,7 +197,7 @@ print_LY_HALY_ACMR_YLD_table <- function(df) {
 
 
 load_table2_files <- function(data_dir = '.') {
-    re_mm <- 'tbl2_.*_mm\\.csv'
+    re_mm <- 'mslt_reduce_.*_mm\\.csv'
 
     mm_files <- list.files(path = data_dir, pattern = re_mm,
                            full.names = TRUE)
@@ -211,7 +206,7 @@ load_table2_files <- function(data_dir = '.') {
     year_of_birth <- 1959
     popn <- 'non-Maori'
     sex <- 'male'
-    ages <- c(52, 53, 108, 109)
+    ages <- c(52, 53, 109, 110)
 
     df <- df[df$year_of_birth == year_of_birth
              & df$popn == popn
