@@ -16,7 +16,8 @@ def post_cessation_rr(disease, rr_data, rr_col, num_states, gamma):
         rr_data[col_name] = 1 + (rr_base - 1) * np.exp(- gamma.values * n)
 
     # Add the RR = 1.0 for the final (absorbing) state.
-    col_name = '{}_{}'.format(disease, num_states)
+    # NOTE: avoid an off-by-one error here, we have 22 states numbered 0..21.
+    col_name = '{}_{}'.format(disease, num_states - 1)
     rr_data[col_name] = 1.0
 
     if np.any(rr_data.isna()):
