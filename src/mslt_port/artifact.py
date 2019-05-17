@@ -191,6 +191,9 @@ def assemble_tobacco_artifacts(num_draws, seed=49430):
         smp_acute_f[name] = prng.random_sample(num_draws)
         smp_acute_yld[name] = prng.random_sample(num_draws)
 
+        # Also draw samples for the RR associated with tobacco smoking.
+        smp_tob_dis_tbl[name] = prng.random_sample(num_draws)
+
     # Now write all of the required tables for:
     #
     #   - Both the Maori and non-Maori populations; and
