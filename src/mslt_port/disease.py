@@ -57,7 +57,7 @@ def sample_disease_rate(year_start, year_end, data, rate_name, apc_data,
         # Calculate the correlated samples for each cohort at each year.
         for counter, year in enumerate(years):
             df['year_start'] = year
-            if counter < num_apc_years and year > year_start:
+            if counter <= num_apc_years and year > year_start:
                 df['year_end'] = year + 1
                 timespan = year - year_start
                 scale = np.exp(apc_values * timespan)
@@ -137,7 +137,7 @@ def sample_disease_rate_from(year_start, year_end, data, rate_name, apc_data,
         # Calculate the correlated samples for each cohort at each year.
         for counter, year in enumerate(years):
             df['year_start'] = year
-            if counter < num_apc_years:
+            if counter <= num_apc_years:
                 df['year_end'] = year + 1
                 timespan = year - year_start
                 scale = np.exp(apc_values * timespan)
@@ -231,7 +231,7 @@ class Chronic:
             base_rates = self._data.loc[:, modify_rates]
             for counter, year in enumerate(years):
                 df_tmp['year_start'] = year
-                if counter < self._num_apc_years:
+                if counter <= self._num_apc_years:
                     df_tmp['year_end'] = year + 1
                     timespan = year - self._year_start
                     scale = np.exp(self._apc.loc[:, modify_rates].values * timespan)
