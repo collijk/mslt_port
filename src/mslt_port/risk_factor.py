@@ -429,17 +429,18 @@ class Tobacco:
         tables = []
 
         for key, table in self._dis_rr_dict.items():
+            regression = True
             if key not in self._df_gamma.columns:
-                logger.info('Ignoring {} (no gamma)'.format(key))
-                continue
+                # For acute diseases, such as LRTI, all of the post-cessation
+                # RRs are fixed at 1.0.
+                regression = False
 
             if key not in samples_tbl:
                 logger.info('Ignoring {} (no samples)'.format(key))
                 continue
 
             # Extract the relative risk for current smokers.
-            rr_col = '{}_0'.format(key)
-            rr_yes = table[rr_col]
+            rr0_col = '{}_0'.format(key)
 
             # Add the standard deviation as a new column.
             df_rr_sd = self._df_dis_rr_sd.loc[
@@ -447,43 +448,66 @@ class Tobacco:
             if df_rr_sd.empty:
                 raise ValueError('No RR distribution for {}'.format(key))
 
-            df_rr_sd = df_rr_sd.rename(columns={'RR': rr_col})
-            table = table.merge(df_rr_sd.loc[:, ['sex', rr_col, 'sd']],
+            df_rr_sd = df_rr_sd.rename(columns={'RR': rr0_col})
+            table = table.merge(df_rr_sd.loc[:, ['sex', rr0_col, 'sd']],
                                 how='left')
             table['sd'].fillna(0.0, inplace=True)
 
             rr_dist = LogNormalRawSD(table['sd'])
 
-            # Determine how many post-cessation states there are (not
-            # including the 0 years post-cessation state).
-            cols = ['age', 'sex', rr_col, 'sd']
-            num_states = len([c for c in table.columns if c not in cols])
+            if regression:
+                # Determine how many post-cessation states there are (not
+                # including the 0 years post-cessation state).
+                cols = ['age', 'sex', rr0_col, 'sd']
+                num_states = len([c for c in table.columns if c not in cols])
+                # Sample the relative risk for current smokers, using the
+                # 0-years post-cessation RR as the baseline value.
+                df_rr = sample_column_long(table.loc[:, cols],
+                                           rr0_col, rr_dist,
+                                           samples_tbl[key])
+                rr_cols = [col for col in df_rr.columns
+                           if col not in ['age', 'sex', 'draw']]
+                if len(rr_cols) != 1:
+                    raise ValueError('Expected one column: {}'.format(rr_cols))
+                # Determine the value of gamma for each cohort.
+                # It is only indexed by age, so we need to merge it with the
+                # index columns of df_rr ('age' and 'sex').
+                gamma = self._df_gamma.loc[:, ['age', key]]
+                gamma.columns = ['age', 'gamma']
+                df_gamma = gamma.merge(df_rr.loc[:, ['age', 'sex']])
+                gamma = df_gamma['gamma']
+            else:
+                # NOTE: handle diseases where RR > 1 for current smokers only.
+                # Here we need to sample the 'disease_yes' column instead.
+                yes_col = '{}_yes'.format(key)
+                cols = ['age', 'sex', yes_col, 'sd']
+                df_rr = sample_column_long(table.loc[:, cols],
+                                           yes_col, rr_dist,
+                                           samples_tbl[key])
+                rr_cols = [col for col in df_rr.columns
+                           if col not in ['age', 'sex', 'draw']]
+                if len(rr_cols) != 1:
+                    raise ValueError('Expected one column: {}'.format(rr_cols))
+                # Even though there's no regression to apply to the
+                # post-cessation RRs, we still need to sample them.
+                df_rr['gamma'] = 0.0
+                gamma = df_rr['gamma']
+                df_rr = df_rr.drop(columns='gamma')
+                df_rr[rr0_col] = 1.0
 
-            # Sample the relative risk for current smokers.
-            df_rr = sample_column_long(table.loc[:, cols], rr_col, rr_dist,
-                                       samples_tbl[key])
-            rr_cols = [col for col in df_rr.columns
-                       if col not in ['age', 'sex', 'draw']]
+            # Calculate how the 0-years post-cessation RR decays to 1.0.
+            df_rr = post_cessation_rr(key, df_rr, rr0_col, num_states, gamma)
 
-            if len(rr_cols) != 1:
-                raise ValueError('Expected one column: {}'.format(rr_cols))
-
-            # Determine the value of gamma for each cohort.
-            # It is only indexed by age, so we need to merge it with the index
-            # columns of df_rr ('age' and 'sex').
-            gamma = self._df_gamma.loc[:, ['age', key]]
-            gamma.columns = ['age', 'gamma']
-            df_gamma = gamma.merge(df_rr.loc[:, ['age', 'sex']])
-            gamma = df_gamma['gamma']
-
-            # Calculate how this RR decays to 1.0, post-cessation.
-            df_rr = post_cessation_rr(key, df_rr, rr_col, num_states, gamma)
-
-            # NOTE: add the 'Disease_no' and 'Disease_yes' columns.
-            df_rr.insert(df_rr.columns.get_loc(rr_col), '{}_no'.format(key),
+            # NOTE: add the 'Disease_no' column.
+            df_rr.insert(df_rr.columns.get_loc(rr0_col), '{}_no'.format(key),
                          1.0)
-            df_rr.insert(df_rr.columns.get_loc(rr_col), '{}_yes'.format(key),
-                         df_rr[rr_col])
+
+            if regression:
+                # NOTE: we must also add the 'Disease_yes' column, which
+                # contains the same values as the 0-years post-cessation RR.
+                df_rr.insert(df_rr.columns.get_loc(rr0_col),
+                             '{}_yes'.format(key),
+                             df_rr[rr0_col])
 
             if len(tables) > 0:
                 # Remove age and sex columns, so that the RR tables for each
@@ -524,6 +548,8 @@ class Tobacco:
         :param prng: The random number generator.
         :param n: The number of samples to draw.
         """
+        raise NotImplementedError("Use sample_disease_rr_from()")
+
         logger = logging.getLogger(__name__)
         tables = []
 
@@ -1006,12 +1032,15 @@ class Tobacco:
             for ix, col_name in enumerate(col_names):
                 out[col_name] = dis_df.iloc[:, ix]
 
-            # NOTE: there are values > 1.0 for the RR For younger ages, where
+            # NOTE: there are values > 1.0 for the RR for younger ages, where
             # the actual RR is set to 1.0 in the full table.
             yes_col = '{}_yes'.format(disease)
             post_0_col = '{}_0'.format(disease)
-            out[yes_col] = out[post_0_col]
 
+            # NOTE: must use the value from yes_col here, since the 0-year
+            # post-cessation RRs may differ from the current-smoker RRs.
+            # This is certainly true for acute diseases such as LRTI.
+            dis_df.insert(0, yes_col, out[yes_col])
             dis_df.insert(0, 'sex', sex)
             dis_df.insert(0, 'age', age)
             dis_df = dis_df.sort_values(['age', 'sex']).reset_index(drop=True)
