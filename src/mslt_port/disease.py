@@ -484,6 +484,9 @@ class Diseases:
                     dis_df_apc = self._apcs.loc[:, ['sex'] + apc_cols]
                 else:
                     dis_df_apc = None
+                # Use a consistent name for this disease.
+                if disease == 'HeadNeckCancer':
+                    disease = 'MouthandoropharynxCancer'
                 self.chronic[disease] = Chronic(disease,
                                                 self._year_start,
                                                 self._year_end,
