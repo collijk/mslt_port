@@ -183,6 +183,11 @@ class Chronic:
         self._apc = apc
 
     def _build_data_table(self, data):
+        # NOTE: the name of the remission column was spelt incorrectly for
+        # stomach cancer, which prevented it from being renamed to 'r' and
+        # ultimately caused it to have a remission rate of zero.
+        if 'Remsision' in data.columns:
+            data = data.rename(columns={'Remsision': 'Remission'})
         data = data.rename(columns={
             'Incidence': 'i',
             'prevalence': 'prev',
