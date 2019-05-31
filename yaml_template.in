@@ -17,7 +17,7 @@ components:
                 - Disease('CHD')
                 - Disease('Stroke')
                 - Disease('LungCancer')
-                - Disease('HeadNeckCancer')
+                - Disease('MouthandoropharynxCancer')
                 - Disease('OesophagusCancer')
                 - Disease('StomachCancer')
                 - Disease('LiverCancer')
@@ -64,17 +64,20 @@ configuration:
             COPD:
             BladderCancer:
             CervicalCancer:
-            ColorectalCancer:
+            # NOTE: ColorectalCancer has no effect in the Excel model.
+            # ColorectalCancer:
             EndometrialCancer:
             KidneyCancer:
             LiverCancer:
             LungCancer:
+            MouthandoropharynxCancer:
             OesophagusCancer:
             PancreasCancer:
             StomachCancer:
             ThyroidCancer:
             Melanoma:
             Stroke:
+            LRTI:
     tobacco_eradication:
         year: 2011
     tobacco_free_generation:

@@ -14,28 +14,11 @@ components:
             delay:
                 - DelayedRisk('tobacco')
             disease:
-                - Disease('CHD')
-                - Disease('Stroke')
-                - Disease('LungCancer')
-                - Disease('MouthandoropharynxCancer')
-                - Disease('OesophagusCancer')
-                - Disease('StomachCancer')
-                - Disease('LiverCancer')
-                - Disease('ColorectalCancer')
-                - Disease('PancreasCancer')
-                - Disease('CervicalCancer')
-                - Disease('BladderCancer')
                 - Disease('KidneyCancer')
-                - Disease('EndometrialCancer')
-                - Disease('Melanoma')
-                - Disease('ThyroidCancer')
-                - Disease('COPD')
-                - AcuteDisease('LRTI')
             intervention:
                 - TobaccoEradication()
             observer:
                 - MorbidityMortality()
-                # - Disease('CHD')
                 # - TobaccoPrevalence()
 
 configuration:
@@ -43,7 +26,7 @@ configuration:
         artifact_path: mslt_tobacco_non-maori_20-years.hdf
         input_draw_number: 0
     observer:
-        output_prefix: mslt_tobacco_non-maori_20-years_decreasing_erad
+        output_prefix: mslt_tobacco_non-maori_20-years_decreasing_erad_kidneycancer
     population:
         population_size: 44 # Male and female 5-year cohorts, aged 0 to 109.
     time:
@@ -58,24 +41,7 @@ configuration:
         delay: 20
         affects:
             # This is where the affected diseases should be listed.
-            CHD:
-            COPD:
-            BladderCancer:
-            CervicalCancer:
-            # NOTE: ColorectalCancer has no effect in the Excel model.
-            # ColorectalCancer:
-            EndometrialCancer:
             KidneyCancer:
-            LiverCancer:
-            LungCancer:
-            MouthandoropharynxCancer:
-            OesophagusCancer:
-            PancreasCancer:
-            StomachCancer:
-            ThyroidCancer:
-            Melanoma:
-            Stroke:
-            LRTI:
     tobacco_eradication:
         year: 2011
     tobacco_free_generation:
