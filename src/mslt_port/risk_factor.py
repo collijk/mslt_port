@@ -441,6 +441,7 @@ class Tobacco:
 
             # Extract the relative risk for current smokers.
             rr0_col = '{}_0'.format(key)
+            yes_col = '{}_yes'.format(key)
 
             # Add the standard deviation as a new column.
             df_rr_sd = self._df_dis_rr_sd.loc[
@@ -448,9 +449,14 @@ class Tobacco:
             if df_rr_sd.empty:
                 raise ValueError('No RR distribution for {}'.format(key))
 
-            df_rr_sd = df_rr_sd.rename(columns={'RR': rr0_col})
-            table = table.merge(df_rr_sd.loc[:, ['sex', rr0_col, 'sd']],
-                                how='left')
+            if regression:
+                df_rr_sd = df_rr_sd.rename(columns={'RR': rr0_col})
+                table = table.merge(df_rr_sd.loc[:, ['sex', rr0_col, 'sd']],
+                                    how='left')
+            else:
+                df_rr_sd = df_rr_sd.rename(columns={'RR': yes_col})
+                table = table.merge(df_rr_sd.loc[:, ['sex', yes_col, 'sd']],
+                                    how='left')
             table['sd'].fillna(0.0, inplace=True)
 
             rr_dist = LogNormalRawSD(table['sd'])
@@ -479,8 +485,8 @@ class Tobacco:
             else:
                 # NOTE: handle diseases where RR > 1 for current smokers only.
                 # Here we need to sample the 'disease_yes' column instead.
-                yes_col = '{}_yes'.format(key)
                 cols = ['age', 'sex', yes_col, 'sd']
+                num_states = len([c for c in table.columns if c not in cols])
                 df_rr = sample_column_long(table.loc[:, cols],
                                            yes_col, rr_dist,
                                            samples_tbl[key])
@@ -499,8 +505,14 @@ class Tobacco:
             df_rr = post_cessation_rr(key, df_rr, rr0_col, num_states, gamma)
 
             # NOTE: add the 'Disease_no' column.
-            df_rr.insert(df_rr.columns.get_loc(rr0_col), '{}_no'.format(key),
-                         1.0)
+            if regression:
+                df_rr.insert(df_rr.columns.get_loc(rr0_col),
+                             '{}_no'.format(key),
+                             1.0)
+            else:
+                df_rr.insert(df_rr.columns.get_loc(yes_col),
+                             '{}_no'.format(key),
+                             1.0)
 
             if regression:
                 # NOTE: we must also add the 'Disease_yes' column, which
