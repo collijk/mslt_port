@@ -35,17 +35,18 @@ components:
                 - TobaccoEradication()
             observer:
                 - MorbidityMortality()
-                # - Disease('CHD')
-                # - TobaccoPrevalence()
 
 configuration:
     input_data:
         artifact_path: mslt_tobacco_non-maori_0-years.hdf
         input_draw_number: 0
     observer:
-        output_prefix: mslt_tobacco_non-maori_0-years_decreasing_erad
+        output_prefix: results/mslt_tobacco_non-maori_0-years_decreasing_erad
     population:
-        population_size: 44 # Male and female 5-year cohorts, aged 0 to 109.
+        # The population size here is the number of cohorts.
+        # There are 22 age bins (0-4, 5-9, ..., 105-109) for females and for
+        # males, making a total of 44 cohorts.
+        population_size: 44
     time:
         start:
             year: 2011
@@ -62,8 +63,6 @@ configuration:
             COPD:
             BladderCancer:
             CervicalCancer:
-            # NOTE: ColorectalCancer has no effect in the Excel model.
-            # ColorectalCancer:
             EndometrialCancer:
             KidneyCancer:
             LiverCancer:
