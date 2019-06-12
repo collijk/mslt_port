@@ -286,7 +286,7 @@ class Diseases:
     def __init__(self, data_dir, year_start, year_end):
         self._year_start = year_start
         self._year_end = year_end
-        self.data_dir = data_dir
+        self.data_dir = '{}/diseases/'.format(data_dir)
         self._initial_rates = self.load_initial_disease_rates()
         self._apcs = self.load_chronic_disease_rates_apc()
         self.create_disease_objects()
