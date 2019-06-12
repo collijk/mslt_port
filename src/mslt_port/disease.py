@@ -1,5 +1,6 @@
 """Build disease-specific data tables."""
 
+import logging
 import pandas as pd
 import numpy as np
 import pathlib
@@ -287,152 +288,45 @@ class Diseases:
         self._year_start = year_start
         self._year_end = year_end
         self.data_dir = '{}/diseases/'.format(data_dir)
-        self._initial_rates = self.load_initial_disease_rates()
-        self._apcs = self.load_chronic_disease_rates_apc()
-        self.create_disease_objects()
+        self.load_diseases_data()
 
-    def load_initial_disease_rates(self):
-        data_file = '{}/disease_rates.csv'.format(self.data_dir)
-        data_path = str(pathlib.Path(data_file).resolve())
-        df = pd.read_csv(data_path, header=None, prefix='C', comment='#')
-        return df
-
-    def create_disease_objects(self):
-        df = self._initial_rates
-
-        # The first two columns are sex and age.
-        sex = df.iloc[2:, 0]
-        age = df.iloc[2:, 1].astype(int)
-
-        # Extract the first row, which lists the diseases.
-        disease_headers = df.iloc[0, 2:].fillna('').str.strip()
-        # Extract the second row, which lists the data columns.
-        column_headers = df.iloc[1, 2:]
-        # Extract the data values.
-        df = df.iloc[2:, 2:]
-
-        # Identify the columns that are required for each type of disease.
-        chronic_cols = ['Incidence', 'Case Fatality', 'prevalence', 'DR']
-        acute_cols = ['Mortality', 'DR']
+    def load_diseases_data(self):
+        logger = logging.getLogger(__name__)
 
         self.chronic = {}
         self.acute = {}
 
-        # Extract the initial rates for each chronic and acute disease.
-        while len(disease_headers) > 0:
-            disease = disease_headers[0]
+        rate_suffix = 'rates.csv'
+        apc_suffix = 'apc.csv'
+        strip_ix = len(rate_suffix) + 1
 
-            if not isinstance(disease, str):
-                raise ValueError('Invalid disease name: {}'.format(disease))
+        chronic_cols = ['age', 'sex', 'i', 'prev', 'f', 'r', 'DR']
+        acute_cols = ['age', 'sex', 'excess_mortality', 'disability_rate']
 
-            # Check where the next disease begins.
-            disease_ixs = np.where(disease_headers.str.len() > 0)[0]
-            if len(disease_ixs) > 1:
-                end_ix = disease_ixs[1]
-                dis_df = df.iloc[:, :end_ix]
-                dis_cols = column_headers[:end_ix]
-                disease_headers = disease_headers[end_ix:]
-                column_headers = column_headers[end_ix:]
-                df = df.iloc[:, end_ix:]
-            else:
-                dis_df = df
-                dis_cols = column_headers
-                disease_headers = []
-                column_headers = []
+        p = pathlib.Path(self.data_dir)
+        rate_paths = sorted(p.glob('*_{}'.format(rate_suffix)))
+        for rate_path in rate_paths:
+            disease_name = str(rate_path.name)[:-strip_ix]
 
-            if disease == 'Leukaemia - to be completed':
-                continue
-
-            disease = disease.replace(' ', '')
-
-            # Extract the relevant disease rates.
-            dis_df.columns = dis_cols.values
-            dis_df['age'] = age
-            dis_df['sex'] = sex
-
-            is_chronic = np.all([c in dis_cols.values for c in chronic_cols])
-            is_acute = np.all([c in dis_cols.values for c in acute_cols])
-
-            if is_chronic:
-                if disease in self.chronic:
-                    raise ValueError('Duplicate disease {}'.format(disease))
-                # Check if there are annual percent changes for this disease.
-                disease_prefix = disease + '_'
-                apc_cols = [col for col in self._apcs.columns
-                            if col.startswith(disease_prefix)]
-                if apc_cols:
-                    dis_df_apc = self._apcs.loc[:, ['sex'] + apc_cols]
+            df_rates = pd.read_csv(rate_path)
+            if all(c in chronic_cols for c in df_rates.columns):
+                # Chronic disease, check for annual percent changes.
+                prefix = str(rate_path)[:-strip_ix]
+                apc_file = '{}_{}'.format(prefix, apc_suffix)
+                apc_path = pathlib.Path(apc_file)
+                if apc_path.exists():
+                    df_apc = pd.read_csv(apc_path)
                 else:
-                    dis_df_apc = None
-                # Use a consistent name for this disease.
-                if disease == 'HeadNeckCancer':
-                    disease = 'MouthandoropharynxCancer'
-                    rename_to = {c: c.replace('HeadNeckCancer', 'MouthandoropharynxCancer')
-                                 for c in dis_df_apc.columns}
-                    dis_df_apc = dis_df_apc.rename(columns=rename_to)
-                self.chronic[disease] = Chronic(disease,
-                                                self._year_start,
-                                                self._year_end,
-                                                dis_df,
-                                                dis_df_apc)
-                # Write these tables to disk.
-                rates_file = '{}/{}_rates.csv'.format(self.data_dir, disease)
-                # dis_df.to_csv(rates_file, index=False)
-                self.chronic[disease]._data.to_csv(rates_file, index=False,
-                                                   float_format='%.20f')
-                if dis_df_apc is not None:
-                    apc_file = '{}/{}_apc.csv'.format(self.data_dir, disease)
-                    dis_df_apc = dis_df_apc.drop(columns='age')
-                    dis_df_apc.to_csv(apc_file, index=False,
-                                      float_format='%.20f')
-            elif is_acute:
-                if disease in self.acute:
-                    raise ValueError('Duplicate disease {}'.format(disease))
-                self.acute[disease] = Acute(disease,
-                                            self._year_start, self._year_end,
-                                            dis_df)
-                # Write these disease rates to disk.
-                rates_file = '{}/{}_rates.csv'.format(self.data_dir, disease)
-                # dis_df.to_csv(rates_file, index=False)
-                self.acute[disease]._data.to_csv(rates_file, index=False,
-                                                   float_format='%.20f')
+                    df_apc = None
+
+                self.chronic[disease_name] = Chronic(
+                    disease_name, self._year_start, self._year_end,
+                    df_rates, df_apc)
+            elif all(c in acute_cols for c in df_rates.columns):
+                # Acute disease
+                self.acute[disease_name] = Acute(
+                    disease_name, self._year_start, self._year_end, df_rates)
+
             else:
-                msg = 'Invalid columns for disease {}'.format(disease)
-                raise ValueError(msg)
-
-    def load_chronic_disease_rates_apc(self):
-        data_file = '{}/disease_rates_apc.csv'.format(self.data_dir)
-        data_path = str(pathlib.Path(data_file).resolve())
-        df = pd.read_csv(data_path, header=None, prefix='C', comment='#')
-
-        rate_suffix = {
-            'INCIDENCE TRENDS': '_i',
-            'CASE FATALITY TRENDS': '_f',
-            'REMISSION TRENDS': '_r',
-        }
-
-        # NOTE: column 1 contains the gender, we can ignore its contents.
-        # Row 1 contains the rate type (incidence, remission, CFR)
-        rate_types = df.iloc[0, 1:].fillna('').str.strip()
-        # Row 2 contains the regression slopes for males.
-        # NOTE: values for female-only cancers are empty, rather than zero.
-        male_slope = (df.iloc[1, 1:].fillna('0')
-                      .str.strip()
-                      .str.replace('^$', '0')
-                      .astype(float))
-        # Row 3 contains the regression slopes for females.
-        female_slope = df.iloc[2, 1:].astype(float)
-        # Row 4 contains the disease names.
-        # NOTE: strip all whitespace and newline characters.
-        disease_names = df.iloc[3, 1:].str.replace('\s{1,}', '')
-
-        out = pd.DataFrame(data={'sex': ['male', 'female']})
-
-        suffix = rate_suffix[rate_types[0]]
-        for ix, disease in enumerate(disease_names):
-            if len(rate_types[ix]) > 0:
-                suffix = rate_suffix[rate_types[ix]]
-            rate_name = disease + suffix
-            out[rate_name] = [male_slope[ix], female_slope[ix]]
-
-        return out
+                # Warn the user and ignore this file.
+                logger.warning('Invalid disease file %s', rate_path)
