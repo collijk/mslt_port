@@ -705,6 +705,41 @@ class Tobacco:
         return df
 
     def load_tobacco_diseases_rr(self):
+        (diseases_old, df_old) = self.old_load_tobacco_diseases_rr()
+
+        suffix = 'rr.csv'
+        strip_ix = len(suffix) + 1
+
+        index_cols = ['age', 'sex']
+        diseases = {}
+        df = None
+
+        p = pathlib.Path(self.data_dir) / pathlib.Path('rr_disease')
+        paths = sorted(p.glob('*_{}'.format(suffix)))
+        for path in paths:
+            disease_name = str(path.name)[:-strip_ix]
+            df_in = pd.read_csv(path)
+            rename_to = {c: '{}_{}'.format(disease_name, c)
+                         for c in df_in.columns if c not in index_cols}
+            df_in = df_in.rename(columns=rename_to)
+            diseases[disease_name] = df_in
+            if df is None:
+                df = df_in
+            else:
+                df = df.merge(df_in, how='outer', on=index_cols)
+                if np.any(df.isna()):
+                    raise ValueError('Invalid RRs for {}'.format(disease_name))
+
+            yes_col = '{}_yes'.format(disease_name)
+            no_col = '{}_no'.format(disease_name)
+            df.insert(df.columns.get_loc(yes_col), no_col, 1.0)
+
+        df = df.sort_values(['age', 'sex']).reset_index(drop=True)
+        df.insert(0, 'year', self._year_start)
+
+        return (diseases, df)
+
+    def old_load_tobacco_diseases_rr(self):
         data_file = '{}/tobacco_rr_disease.csv'.format(self.data_dir)
         data_path = str(pathlib.Path(data_file).resolve())
         df = pd.read_csv(data_path, header=None, prefix='C', comment='#')
@@ -724,6 +759,7 @@ class Tobacco:
         df = df.iloc[2:, 2:].astype(float).fillna(1.0)
 
         diseases = {}
+        p = pathlib.Path(self.data_dir) / pathlib.Path('rr_disease')
 
         # Extract the initial rates for each chronic and acute disease.
         while len(disease_headers) > 0:
@@ -796,11 +832,42 @@ class Tobacco:
 
             diseases[disease] = dis_df
 
+            # Write these tables to disk.
+            destination = p / pathlib.Path('{}_rr.csv'.format(disease))
+            prefix = '{}_'.format(disease)
+            rename_to = {c: c[len(prefix):] if c.startswith(prefix) else c
+                         for c in dis_df.columns}
+            subset = dis_df.rename(columns=rename_to)
+            subset.to_csv(destination, index=False)
+
         out = out.sort_values(['age', 'sex']).reset_index(drop=True)
 
         return (diseases, out)
 
     def load_tobacco_disease_rr_gamma(self):
+        df_old = self.old_load_tobacco_disease_rr_gamma()
+
+        suffix = 'rr_decay.csv'
+        strip_ix = len(suffix) + 1
+
+        df = None
+
+        p = pathlib.Path(self.data_dir) / pathlib.Path('rr_disease')
+        paths = sorted(p.glob('*_{}'.format(suffix)))
+        for path in paths:
+            disease_name = str(path.name)[:-strip_ix]
+            df_in = pd.read_csv(path)
+            df_in = df_in.rename(columns={'gamma': disease_name})
+            if df is None:
+                df = df_in
+            else:
+                df = df.merge(df_in, how='outer', on='age')
+                if np.any(df.isna()):
+                    raise ValueError('Invalid gamma for {}'.format(disease_name))
+
+        return df
+
+    def old_load_tobacco_disease_rr_gamma(self):
         data_file = '{}/tobacco_rr_disease_gamma.csv'.format(self.data_dir)
         data_path = str(pathlib.Path(data_file).resolve())
         df = pd.read_csv(data_path)
@@ -811,9 +878,41 @@ class Tobacco:
         df = df.astype(float).fillna(0.0)
         df = df.sort_values(['age']).reset_index(drop=True)
 
+        # Write single-disease tables to disk.
+        index_cols = ['age']
+        diseases = [c for c in df.columns if c not in index_cols]
+        p = pathlib.Path(self.data_dir) / pathlib.Path('rr_disease')
+        for disease in diseases:
+            subset = df.loc[:, index_cols + [disease]]
+            subset = subset.rename(columns={disease: 'gamma'})
+            destination = p / pathlib.Path('{}_rr_decay.csv'.format(disease))
+            subset['age'] = subset['age'].astype(int)
+            subset.to_csv(destination, index=False)
+
         return df
 
     def load_tobacco_disease_rr_sd(self):
+        df_old = self.old_load_tobacco_disease_rr_sd()
+
+        suffix = 'rr_uncertainty.csv'
+        strip_ix = len(suffix) + 1
+
+        df_list = []
+
+        p = pathlib.Path(self.data_dir) / pathlib.Path('rr_disease')
+        paths = sorted(p.glob('*_{}'.format(suffix)))
+        for path in paths:
+            disease_name = str(path.name)[:-strip_ix]
+            df_in = pd.read_csv(path)
+            df_in.insert(0, 'disease', disease_name)
+            df_list.append(df_in)
+
+        df = pd.concat(df_list, ignore_index=True)
+        df = df.sort_values(by=['disease', 'sex']).reset_index(drop=True)
+
+        return df
+
+    def old_load_tobacco_disease_rr_sd(self):
         data_file = '{}/tobacco_rr_disease_95pcnt_ci.csv'.format(self.data_dir)
         data_path = str(pathlib.Path(data_file).resolve())
         df = pd.read_csv(data_path, header=[0, 1], index_col=0)
@@ -833,5 +932,15 @@ class Tobacco:
 
         if np.any(df.isna()):
             raise ValueError('NA values found in tobacco disease RR SD')
+
+        # Write single-disease tables to disk.
+        index_cols = ['sex']
+        keep_cols = [c for c in df.columns if c != 'disease']
+        diseases = df['disease'].unique()
+        p = pathlib.Path(self.data_dir) / pathlib.Path('rr_disease')
+        for disease in diseases:
+            subset = df.loc[df['disease'] == disease, keep_cols]
+            destination = p / pathlib.Path('{}_rr_uncertainty.csv'.format(disease))
+            subset.to_csv(destination, index=False)
 
         return df
