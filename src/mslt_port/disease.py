@@ -367,17 +367,35 @@ class Diseases:
                 # Use a consistent name for this disease.
                 if disease == 'HeadNeckCancer':
                     disease = 'MouthandoropharynxCancer'
+                    rename_to = {c: c.replace('HeadNeckCancer', 'MouthandoropharynxCancer')
+                                 for c in dis_df_apc.columns}
+                    dis_df_apc = dis_df_apc.rename(columns=rename_to)
                 self.chronic[disease] = Chronic(disease,
                                                 self._year_start,
                                                 self._year_end,
                                                 dis_df,
                                                 dis_df_apc)
+                # Write these tables to disk.
+                rates_file = '{}/{}_rates.csv'.format(self.data_dir, disease)
+                # dis_df.to_csv(rates_file, index=False)
+                self.chronic[disease]._data.to_csv(rates_file, index=False,
+                                                   float_format='%.20f')
+                if dis_df_apc is not None:
+                    apc_file = '{}/{}_apc.csv'.format(self.data_dir, disease)
+                    dis_df_apc = dis_df_apc.drop(columns='age')
+                    dis_df_apc.to_csv(apc_file, index=False,
+                                      float_format='%.20f')
             elif is_acute:
                 if disease in self.acute:
                     raise ValueError('Duplicate disease {}'.format(disease))
                 self.acute[disease] = Acute(disease,
                                             self._year_start, self._year_end,
                                             dis_df)
+                # Write these disease rates to disk.
+                rates_file = '{}/{}_rates.csv'.format(self.data_dir, disease)
+                # dis_df.to_csv(rates_file, index=False)
+                self.acute[disease]._data.to_csv(rates_file, index=False,
+                                                   float_format='%.20f')
             else:
                 msg = 'Invalid columns for disease {}'.format(disease)
                 raise ValueError(msg)
