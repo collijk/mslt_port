@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import pathlib
 
-from .uncertainty import (sample_fixed_rate, sample_fixed_rate_from)
+from .uncertainty import sample_fixed_rate_from
 
 
 class Population:
@@ -48,13 +48,6 @@ class Population:
         cols = ['year', 'age', 'sex', 'population', 'bau_population']
         # Retain only those strata for whom the population size is defined.
         df = self._data.loc[self._data['population'].notna(), cols].copy()
-        return df
-
-    def sample_disability_rate(self, prng, rate_dist, n):
-        df = self._data.rename(columns={'disability_rate': 'rate'})
-        df = sample_fixed_rate(self.year_start, self.year_end,
-                               df, 'rate',
-                               prng, rate_dist, n)
         return df
 
     def sample_disability_rate_from(self, rate_dist, samples):

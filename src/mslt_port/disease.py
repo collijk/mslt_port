@@ -4,86 +4,7 @@ import pandas as pd
 import numpy as np
 import pathlib
 
-from .uncertainty import (sample_column, sample_column_long,
-                          sample_fixed_rate, sample_fixed_rate_from)
-
-
-def sample_disease_rate(year_start, year_end, data, rate_name, apc_data,
-                        num_apc_years, prng, rate_dist, apc_dist, n):
-    """
-    Draw correlated samples for a rate at each year.
-
-    :param year_start: The year at which the simulation starts.
-    :param year_end: The year at which the simulation ends.
-    :param data: The data table that contains the rate values.
-    :param rate_name: The column name that defines the mean values.
-    :param apc_data: The data table that contains the annual percent changes
-        (set to ``None`` if there are no changes).
-    :param num_apc_years: The number of years over which the annual percent
-        changes apply (measured from the start of the simulation).
-    :param prng: The random number generator (``numpy.random.RandomState``).
-    :param rate_dist: The uncertainty distribution for the rate values.
-    :param apc_dist: The uncertainty distribution for the annual percent
-        change in this rate.
-    :param n: The number of samples to draw per row.
-    """
-    value_col = rate_name
-
-    # Sample the initial rate for each cohort.
-    df = sample_column(data, value_col, prng, rate_dist, n)
-
-    df.insert(0, 'year_start', 0)
-    df.insert(1, 'year_end', 0)
-
-    df_index_cols = ['year_start', 'year_end', 'age', 'sex']
-    apc_index_cols = ['age', 'sex']
-
-    tables = []
-    years = range(year_start, year_end + 1)
-
-    if apc_data is not None and value_col in apc_data.columns:
-        # Sample the annual percent change for each cohort.
-        apc = apc_data.loc[:, apc_index_cols + [value_col]]
-        apc = sample_column(apc, value_col, prng, apc_dist, n)
-
-        draw_columns = [c for c in apc.columns if c not in apc_index_cols]
-        data_columns = [c for c in df.columns if c not in df_index_cols]
-        if set(draw_columns) != set(data_columns):
-            raise ValueError('Inconsistent disease parameter draws')
-
-        base_values = df.loc[:, draw_columns].copy().values
-        apc_values = apc.loc[:, draw_columns].copy().values
-
-        # Calculate the correlated samples for each cohort at each year.
-        for counter, year in enumerate(years):
-            df['year_start'] = year
-            if counter <= num_apc_years and year > year_start:
-                df['year_end'] = year + 1
-                timespan = year - year_start
-                scale = np.exp(apc_values * timespan)
-                df.loc[:, draw_columns] = base_values * scale
-                tables.append(df.copy())
-            else:
-                df['year_end'] = year_end + 1
-                tables.append(df.copy())
-                break
-
-        df = pd.concat(tables)
-
-    else:
-        df['year_start'] = year_start
-        df['year_end'] = year_end + 1
-
-    # Replace 'age' with age groups.
-    df = df.rename(columns={'age': 'age_group_start'})
-    df.insert(df.columns.get_loc('age_group_start') + 1,
-              'age_group_end',
-              df['age_group_start'] + 1)
-
-    df = df.sort_values(['year_start', 'age_group_start', 'sex'])
-    df = df.reset_index(drop=True)
-
-    return df
+from .uncertainty import sample_column_long, sample_fixed_rate_from
 
 
 def sample_disease_rate_from(year_start, year_end, data, rate_name, apc_data,
@@ -305,40 +226,6 @@ class Chronic:
                   df['age_group_start'] + 1)
         return df
 
-    def sample_i(self, prng, rate_dist, apc_dist, n):
-        """Sample the incidence rate."""
-        return sample_disease_rate(self._year_start, self._year_end,
-                                   self._data, 'i',
-                                   self._apc, self._num_apc_years,
-                                   prng, rate_dist, apc_dist, n)
-
-    def sample_r(self, prng, rate_dist, apc_dist, n):
-        """Sample the remission rate."""
-        return sample_disease_rate(self._year_start, self._year_end,
-                                   self._data, 'r',
-                                   self._apc, self._num_apc_years,
-                                   prng, rate_dist, apc_dist, n)
-
-    def sample_f(self, prng, rate_dist, apc_dist, n):
-        """Sample the case fatality rate."""
-        return sample_disease_rate(self._year_start, self._year_end,
-                                   self._data, 'f',
-                                   self._apc, self._num_apc_years,
-                                   prng, rate_dist, apc_dist, n)
-
-    def sample_yld(self, prng, rate_dist, apc_dist, n):
-        """Sample the years lost due to disability rate."""
-        return sample_disease_rate(self._year_start, self._year_end,
-                                   self._data, 'DR',
-                                   self._apc, self._num_apc_years,
-                                   prng, rate_dist, apc_dist, n)
-
-    def sample_prevalence(self, prng, rate_dist, n):
-        """Sample the initial prevalence of disease."""
-        df = sample_column(self._data, 'prev', prng, rate_dist, n)
-        df.insert(0, 'year', self._year_start)
-        return df
-
 
 class Acute:
 
@@ -392,18 +279,6 @@ class Acute:
         df = sample_fixed_rate_from(self._year_start, self._year_end,
                                     self._data, col, rate_dist, samples)
         return df
-
-    def sample_excess_mortality(self, prng, rate_dist, n):
-        """Sample the excess mortality rate."""
-        col = 'excess_mortality'
-        return sample_fixed_rate(self._year_start, self._year_end,
-                                 self._data, col, prng, rate_dist, n)
-
-    def sample_disability(self, prng, rate_dist, n):
-        """Sample the disability rate."""
-        col = 'disability_rate'
-        return sample_fixed_rate(self._year_start, self._year_end,
-                                 self._data, col, prng, rate_dist, n)
 
 
 class Diseases:

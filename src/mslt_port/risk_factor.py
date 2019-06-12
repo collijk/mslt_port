@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 import pathlib
 
-from .uncertainty import (LogNormalRawSD, sample_column, sample_column_long)
+from .uncertainty import LogNormalRawSD, sample_column_long
 
 
 def post_cessation_rr(disease, rr_data, rr_col, num_states, gamma):
@@ -24,84 +24,6 @@ def post_cessation_rr(disease, rr_data, rr_col, num_states, gamma):
         raise ValueError('NA values in post-cessation RRs')
 
     return rr_data
-
-
-def sample_tobacco_rate(year_start, year_end, data, rate_name, prev_data,
-                        apc_data, num_apc_years, prng, rate_dist, n):
-    """
-    Draw correlated samples for a tobacco rate at each year.
-
-    :param year_start: The year at which the simulation starts.
-    :param year_end: The year at which the simulation ends.
-    :param data: The data table that contains the rate values.
-    :param rate_name: The column name that defines the mean values.
-    :param prev_data: The data table that contains the initial prevalence.
-    :param apc_data: The data table that contains the annual percent changes
-        (set to ``None`` if there are no changes).
-    :param num_apc_years: The number of years over which the annual percent
-        changes apply (measured from the start of the simulation).
-    :param prng: The random number generator (``numpy.random.RandomState``).
-    :param rate_dist: The uncertainty distribution for the rate values.
-    :param n: The number of samples to draw per row.
-    """
-    value_col = rate_name
-
-    if value_col == 'incidence':
-        # The uptake rate is defined by the initial prevalence.
-        data.loc[:, 'incidence'] = 0.0
-        initial_rate = prev_data.loc[prev_data['age'] == 20, 'tobacco.yes']
-        data.loc[data['age'] == 20, 'incidence'] = initial_rate
-
-    # Sample the initial rate for each cohort.
-    df = sample_column_long(data, value_col, prng, rate_dist, n)
-
-    df.insert(0, 'year_start', 0)
-    df.insert(1, 'year_end', 0)
-
-    df_index_cols = ['year_start', 'year_end', 'age', 'sex', 'draw']
-    apc_index_cols = ['age', 'sex']
-
-    tables = []
-    years = range(year_start, year_end + 1)
-
-    if apc_data is not None and value_col in apc_data.columns:
-        data_columns = [c for c in df.columns if c not in df_index_cols]
-        apc_values = apc_data.loc[:, value_col].values
-        base_values = df.loc[:, data_columns].copy().values
-
-        initial_rate = df.loc[:, data_columns].copy().values
-        frac = (1 - apc_data.loc[:, value_col].values)
-
-        # Calculate the correlated samples for each cohort at each year.
-        for counter, year in enumerate(years):
-            df['year_start'] = year
-            if counter < num_apc_years:
-                df['year_end'] = year + 1
-                timespan = year - year_start
-                result = initial_rate * (frac ** timespan)[..., np.newaxis]
-                df.loc[:, data_columns] = result
-                tables.append(df.copy())
-            else:
-                df['year_end'] = year_end + 1
-                tables.append(df.copy())
-                break
-
-        df = pd.concat(tables)
-
-    else:
-        df['year_start'] = year_start
-        df['year_end'] = year_end + 1
-
-    # Replace 'age' with age groups.
-    df = df.rename(columns={'age': 'age_group_start'})
-    df.insert(df.columns.get_loc('age_group_start') + 1,
-              'age_group_end',
-              df['age_group_start'] + 1)
-
-    df = df.sort_values(['year_start', 'age_group_start', 'sex'])
-    df = df.reset_index(drop=True)
-
-    return df
 
 
 def sample_tobacco_rate_from(year_start, year_end, data, rate_name, prev_data,
@@ -311,110 +233,6 @@ class Tobacco:
 
         return df
 
-    def sample_price_elasticity(self, prng, elast_dist, n):
-        """
-        Sample the price elasticity and return the individual draws.
-
-        :param prng: The random number generator.
-        :param elast_dist: The sampling distribution.
-        :param n: The number of samples to draw.
-        """
-        df_elast = sample_column(self._df_elast, 'Elasticity',
-                                 prng, elast_dist, n)
-        return df_elast
-
-    def scale_price_elasticity(self, df_elast, mean_scale, prng, scale_dist):
-        """
-        Scale the price elasticity by variable amounts.
-
-        :param df_elast: Baseline samples of the price elasticity.
-        :param mean_scale: The average scale to apply (e.g., 1.2).
-        :param prng: The random number generator.
-        :param scale_dist: The sampling distribution for ``mean_scale``.
-        """
-        elast_cols = [c for c in df_elast.columns
-                      if c.startswith('Elasticity_draw_')]
-        num_samples = len(elast_cols)
-
-        scale_samples = prng.random_sample(size=num_samples)
-        scales = scale_dist.correlated_samples(pd.Series(mean_scale),
-                                               scale_samples)
-        # Remember to define draw 0 as the expected value.
-        scales[0] = mean_scale
-
-        df_elast = df_elast.copy()
-        df_elast.loc[:, elast_cols] = (df_elast.loc[:, elast_cols].values
-                                       * scales.T)
-
-        return df_elast
-
-    def sample_tax_effects_from_elasticity(self, df_elast):
-        """
-        Calculate the effects of a tobacco tax on uptake and remission, given
-        a number of samples for the price elasticity.
-
-        :param df_elast: Samples of the price elasticity.
-        """
-        df_price = self._df_price
-        df_elast = df_elast.copy()
-        df_elast.insert(0, 'year', 0)
-
-        elast_cols = [c for c in df_elast.columns
-                      if c.startswith('Elasticity_draw_')]
-        inc_cols = ['incidence_effect_draw_{}'.format(i)
-                    for i in range(len(elast_cols))]
-        rem_cols = ['remission_effect_draw_{}'.format(i)
-                    for i in range(len(elast_cols))]
-
-        if np.any(df_elast.loc[:, elast_cols].isna()):
-            raise ValueError('NA values in elast_cols')
-
-        df_tmp = pd.DataFrame(columns=inc_cols + rem_cols)
-        df_elast = df_elast.join(df_tmp)
-
-        # Loop over the price at each year, and determine the effects of price
-        # elasticity on uptake and cessation rates.
-        start_price = df_price.loc[0, 'price']
-        tables = []
-        for i, row in enumerate(df_price.itertuples()):
-            df_elast['year'] = row.year
-            df_elast['price'] = row.price
-
-            df_elast.loc[:, inc_cols] = np.exp(
-                - df_elast.loc[:, elast_cols].values
-                * np.log(row.price / start_price))
-
-            prev_price = row.price if i == 0 else df_price.loc[i - 1, 'price']
-            if row.price > prev_price:
-                df_elast.loc[:, rem_cols] = np.exp(
-                    - df_elast.loc[:, elast_cols].values
-                    * np.log(row.price / prev_price))
-            else:
-                df_elast.loc[:, rem_cols] = 1.0
-
-            tables.append(df_elast.copy())
-
-        df = pd.concat(tables).sort_values(['year', 'age', 'sex'])
-        df = df.reset_index(drop=True)
-        df = df.loc[:, ['year', 'age', 'sex'] + inc_cols + rem_cols]
-
-        if np.any(df.isna()):
-            raise ValueError('NA values found in tobacco tax effects data')
-
-        return df
-
-    def sample_tax_effects(self, prng, elast_dist, n):
-        """
-        Sample the price elasticity and return the effects of a tobacco tax on
-        uptake and remission for each elasticity draw.
-
-        :param prng: The random number generator.
-        :param elast_dist: The sampling distribution.
-        :param n: The number of samples to draw.
-        """
-        df_elast = self.sample_price_elasticity(prng, elast_dist, n)
-        return self.sample_tax_effects_from_elasticity(df_elast)
-
     def sample_disease_rr_from(self, samples_tbl):
         """
         Sample the relative risk of chronic disease incidence for each
@@ -548,76 +366,6 @@ class Tobacco:
         df = df.sort_values(['year_start', 'age_group_start', 'sex'])
         df = df.reset_index(drop=True)
 
-        return df
-
-    def sample_disease_rr(self, prng, n):
-        """
-        Sample the relative risk of chronic disease incidence for each
-        exposure category, in all years of the simulation.
-
-        Note that the sampling distribution for each disease is predefined.
-
-        :param prng: The random number generator.
-        :param n: The number of samples to draw.
-        """
-        raise NotImplementedError("Use sample_disease_rr_from()")
-
-        logger = logging.getLogger(__name__)
-        tables = []
-
-        for key, table in self._dis_rr_dict.items():
-            if key not in self._df_gamma.columns:
-                logger.info('Ignoring {}'.format(key))
-                continue
-
-            # Extract the relative risk for current smokers.
-            rr_col = '{}_0'.format(key)
-            rr_yes = table[rr_col]
-
-            # Add the standard deviation as a new column.
-            df_rr_sd = self._df_dis_rr_sd.loc[
-                self._df_dis_rr_sd['disease'] == key]
-            if df_rr_sd.empty:
-                raise ValueError('No RR distribution for {}'.format(key))
-
-            df_rr_sd = df_rr_sd.rename(columns={'RR': rr_col})
-            table = table.merge(df_rr_sd.loc[:, ['sex', rr_col, 'sd']],
-                                how='left')
-            table['sd'].fillna(0.0, inplace=True)
-
-            rr_dist = LogNormalRawSD(table['sd'])
-
-            # Determine how many post-cessation states there are (not
-            # including the 0 years post-cessation state).
-            cols = ['age', 'sex', rr_col, 'sd']
-            num_states = len([c for c in table.columns if c not in cols])
-
-            # Sample the relative risk for current smokers.
-            df_rr = sample_column(table.loc[:, cols], rr_col,
-                                  prng, rr_dist, n)
-            rr_cols = [col for col in df_rr.columns
-                       if col not in ['age', 'sex']]
-
-            # Determine the value of gamma for each cohort.
-            # It is only indexed by age, so we need to merge it with the index
-            # columns of df_rr ('age' and 'sex').
-            gamma = self._df_gamma.loc[:, ['age', key]]
-            gamma.columns = ['age', 'gamma']
-            df_gamma = gamma.merge(df_rr.loc[:, ['age', 'sex']])
-            gamma = df_gamma['gamma']
-
-            # Calculate how this RR decays to 1.0, post-cessation.
-            df_rr = post_cessation_rr(key, df_rr, rr_cols, num_states, gamma)
-
-            if len(tables) > 0:
-                # Remove age and sex columns, so that the RR tables for each
-                # disease can be joined (otherwise these columns will be
-                # duplicated in each table, and the join will fail).
-                df_rr = df_rr.drop(columns=['age', 'sex'])
-
-            tables.append(df_rr)
-
-        df = tables[0].join(tables[1:])
         return df
 
     def get_expected_tax_effects(self):
@@ -799,20 +547,6 @@ class Tobacco:
                                       self._prev, None, 0,
                                       rate_dist, samples)
         return df
-
-    def sample_i(self, prng, rate_dist, n):
-        """Sample the incidence rate."""
-        return sample_tobacco_rate(self._year_start, self._year_end,
-                                   self._initial_rates, 'incidence',
-                                   self._prev, self._apc, 1e3,
-                                   prng, rate_dist, n)
-
-    def sample_r(self, prng, rate_dist, n):
-        """Sample the remission rate."""
-        return sample_tobacco_rate(self._year_start, self._year_end,
-                                   self._initial_rates, 'remission',
-                                   self._prev, None, 0,
-                                   prng, rate_dist, n)
 
     def load_initial_tobacco_rates(self):
         data_file = '{}/tobacco_ir_rates.csv'.format(self.data_dir)
