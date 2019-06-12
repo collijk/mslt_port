@@ -705,8 +705,6 @@ class Tobacco:
         return df
 
     def load_tobacco_diseases_rr(self):
-        (diseases_old, df_old) = self.old_load_tobacco_diseases_rr()
-
         suffix = 'rr.csv'
         strip_ix = len(suffix) + 1
 
@@ -739,114 +737,7 @@ class Tobacco:
 
         return (diseases, df)
 
-    def old_load_tobacco_diseases_rr(self):
-        data_file = '{}/tobacco_rr_disease.csv'.format(self.data_dir)
-        data_path = str(pathlib.Path(data_file).resolve())
-        df = pd.read_csv(data_path, header=None, prefix='C', comment='#')
-
-        # The first two columns are sex and age.
-        sex = df.iloc[2:, 0]
-        age = df.iloc[2:, 1].astype(int)
-
-        # Create the base disease table.
-        out = pd.DataFrame(data={'year': self._year_start, 'age': age, 'sex': sex})
-
-        # Extract the first row, which lists the diseases.
-        disease_headers = df.iloc[0, 2:].fillna('').str.strip()
-        # Extract the second row, which lists the data columns.
-        column_headers = df.iloc[1, 2:]
-        # Extract the data values.
-        df = df.iloc[2:, 2:].astype(float).fillna(1.0)
-
-        diseases = {}
-        p = pathlib.Path(self.data_dir) / pathlib.Path('rr_disease')
-
-        # Extract the initial rates for each chronic and acute disease.
-        while len(disease_headers) > 0:
-            disease = disease_headers[0]
-            if not isinstance(disease, str):
-                raise ValueError('Invalid disease name: {}'.format(disease))
-            # Check where the next disease begins.
-            disease_ixs = np.where(disease_headers.str.len() > 0)[0]
-            if len(disease_ixs) > 1:
-                end_ix = disease_ixs[1]
-                dis_df = df.iloc[:, :end_ix]
-                dis_cols = column_headers[:end_ix]
-                disease_headers = disease_headers[end_ix:]
-                column_headers = column_headers[end_ix:]
-                df = df.iloc[:, end_ix:]
-            else:
-                dis_df = df
-                dis_cols = column_headers
-                disease_headers = []
-                column_headers = []
-
-            if disease == 'RR current':
-                # NOTE: these are the RRs for current smokers; 'dis_cols' contains
-                # the list of diseases.
-                for ix, dis_name in enumerate(dis_cols):
-                    # NOTE: correct a typographic error in the input file.
-                    if dis_name == 'IHD':
-                        dis_name = 'CHD'
-                    dis_name = dis_name.replace(' ', '').replace('cancer', 'Cancer')
-                    no_col = '{}_no'.format(dis_name)
-                    yes_col = '{}_yes'.format(dis_name)
-                    out[no_col] = 1.0
-                    out[yes_col] = dis_df.iloc[:, ix]
-                continue
-
-            # NOTE: correct a typographic error in the input file.
-            if disease == 'IHD':
-                disease = 'CHD'
-
-            disease = disease.replace(' ', '').replace('cancer', 'Cancer')
-
-            if disease in diseases:
-                msg = 'Duplicate RRs for disease {}'.format(disease)
-                raise ValueError(msg)
-
-            # NOTE: these are the post-cessation disease RRs.
-            dis_cols = [c.replace('+', '') if isinstance(c, str) else int(c)
-                        for c in dis_cols]
-            col_names = ['{}_{}'.format(disease, c) for c in dis_cols]
-
-            dis_df.columns = col_names
-            for ix, col_name in enumerate(col_names):
-                out[col_name] = dis_df.iloc[:, ix]
-
-            # NOTE: there are values > 1.0 for the RR for younger ages, where
-            # the actual RR is set to 1.0 in the full table.
-            yes_col = '{}_yes'.format(disease)
-            post_0_col = '{}_0'.format(disease)
-
-            # NOTE: must use the value from yes_col here, since the 0-year
-            # post-cessation RRs may differ from the current-smoker RRs.
-            # This is certainly true for acute diseases such as LRTI.
-            dis_df.insert(0, yes_col, out[yes_col])
-            dis_df.insert(0, 'sex', sex)
-            dis_df.insert(0, 'age', age)
-            dis_df = dis_df.sort_values(['age', 'sex']).reset_index(drop=True)
-
-            if np.any(dis_df.isna()):
-                raise ValueError('NA values found in tobacco disease RR data')
-
-            diseases[disease] = dis_df
-
-            # Write these tables to disk.
-            destination = p / pathlib.Path('{}_rr.csv'.format(disease))
-            prefix = '{}_'.format(disease)
-            rename_to = {c: c[len(prefix):] if c.startswith(prefix) else c
-                         for c in dis_df.columns}
-            subset = dis_df.rename(columns=rename_to)
-            subset.to_csv(destination, index=False)
-
-        out = out.sort_values(['age', 'sex']).reset_index(drop=True)
-
-        return (diseases, out)
-
     def load_tobacco_disease_rr_gamma(self):
-        df_old = self.old_load_tobacco_disease_rr_gamma()
-
         suffix = 'rr_decay.csv'
         strip_ix = len(suffix) + 1
 
@@ -867,33 +758,7 @@ class Tobacco:
 
         return df
 
-    def old_load_tobacco_disease_rr_gamma(self):
-        data_file = '{}/tobacco_rr_disease_gamma.csv'.format(self.data_dir)
-        data_path = str(pathlib.Path(data_file).resolve())
-        df = pd.read_csv(data_path)
-
-        df.columns = [col.replace(' ', '').replace('cancer', 'Cancer')
-                      for col in df.columns]
-
-        df = df.astype(float).fillna(0.0)
-        df = df.sort_values(['age']).reset_index(drop=True)
-
-        # Write single-disease tables to disk.
-        index_cols = ['age']
-        diseases = [c for c in df.columns if c not in index_cols]
-        p = pathlib.Path(self.data_dir) / pathlib.Path('rr_disease')
-        for disease in diseases:
-            subset = df.loc[:, index_cols + [disease]]
-            subset = subset.rename(columns={disease: 'gamma'})
-            destination = p / pathlib.Path('{}_rr_decay.csv'.format(disease))
-            subset['age'] = subset['age'].astype(int)
-            subset.to_csv(destination, index=False)
-
-        return df
-
     def load_tobacco_disease_rr_sd(self):
-        df_old = self.old_load_tobacco_disease_rr_sd()
-
         suffix = 'rr_uncertainty.csv'
         strip_ix = len(suffix) + 1
 
@@ -909,38 +774,5 @@ class Tobacco:
 
         df = pd.concat(df_list, ignore_index=True)
         df = df.sort_values(by=['disease', 'sex']).reset_index(drop=True)
-
-        return df
-
-    def old_load_tobacco_disease_rr_sd(self):
-        data_file = '{}/tobacco_rr_disease_95pcnt_ci.csv'.format(self.data_dir)
-        data_path = str(pathlib.Path(data_file).resolve())
-        df = pd.read_csv(data_path, header=[0, 1], index_col=0)
-
-        # Convert sex into its own column.
-        df = df.stack(level=0).reset_index()
-        df = df.rename(columns={'level_0': 'disease', 'level_1': 'sex'})
-
-        # Rename diseases and sexes as needed.
-        df['disease'] = df['disease'].apply(
-            lambda dis: dis.replace(' ', '').replace('cancer', 'Cancer'))
-        df['sex'] = df['sex'].apply(lambda s: s.lower())
-
-        # Calculate the SD for log-normal distributions.
-        df['sd'] = (np.log(df['95%HCI']) - np.log(df['95%LCI'])) / (2 * 1.96)
-        df = df.loc[:, ['disease', 'sex', 'RR', 'sd']]
-
-        if np.any(df.isna()):
-            raise ValueError('NA values found in tobacco disease RR SD')
-
-        # Write single-disease tables to disk.
-        index_cols = ['sex']
-        keep_cols = [c for c in df.columns if c != 'disease']
-        diseases = df['disease'].unique()
-        p = pathlib.Path(self.data_dir) / pathlib.Path('rr_disease')
-        for disease in diseases:
-            subset = df.loc[df['disease'] == disease, keep_cols]
-            destination = p / pathlib.Path('{}_rr_uncertainty.csv'.format(disease))
-            subset.to_csv(destination, index=False)
 
         return df
