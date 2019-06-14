@@ -39,10 +39,10 @@ summarise_files <- function(delay, tob_prev, interv, verbose = FALSE) {
     ## 3. Non-Maori males.
 
     ## For ACMR and YLDR, report data for:
-    ## 1. Maori females aged 63 in 2041 and 2061; and
-    ## 2. Non-Maori males aged 63 in 2041 and 2061.
+    ## 1. Maori females aged 62 in 2041 and 2061; and
+    ## 2. Non-Maori males aged 62 in 2041 and 2061.
     rate_years <- c(2041, 2061)
-    rate_ages <- c(63)
+    rate_ages <- c(62)
     rate_cols <- c('year', 'age', 'sex')
 
     df_ly <- NULL
@@ -64,6 +64,8 @@ summarise_files <- function(delay, tob_prev, interv, verbose = FALSE) {
         }
 
         draw_number <- as.numeric(gsub('^.*_([0-9]+)\\.csv$', '\\1', file))
+        ## TODO: load data for draw number 0 as the expected value.
+        ## NOTE: this file will end in '_mm.csv'.
 
         df_in <- read.csv(file, header = TRUE)
         df_in$LY <- df_in$person_years
@@ -186,6 +188,7 @@ summarise_files <- function(delay, tob_prev, interv, verbose = FALSE) {
 calculate_ci <- function(df, formula, width=0.95) {
     pr_lower <- 0.5 * (1 - width)
     pr_upper <- 0.5 * (1 + width)
+    pr_median <- 0.5
 
     df_lower <- do.call(
         data.frame,
@@ -195,11 +198,21 @@ calculate_ci <- function(df, formula, width=0.95) {
         data.frame,
         aggregate(formula, data = df,
                   FUN = function(x) quantile(x, probs = pr_upper)))
+    df_median <- do.call(
+        data.frame,
+        aggregate(formula, data = df,
+                  FUN = function(x) quantile(x, probs = pr_median)))
+    df_mean <- do.call(
+        data.frame,
+        aggregate(formula, data = df,
+                  FUN = mean))
 
     df_lower$bound <- 'lower'
     df_upper$bound <- 'upper'
+    df_median$bound <- 'median'
+    df_mean$bound <- 'mean'
 
-    rbind(df_lower, df_upper)
+    rbind(df_lower, df_upper, df_median, df_mean)
 }
 
 
@@ -272,7 +285,9 @@ to_wide <- function(df) {
         } else if (col %in% other_cols) {
             out_cols <- c(out_cols,
                           paste0(col, '.lower'),
-                          paste0(col, '.upper'))
+                          paste0(col, '.upper'),
+                          paste0(col, '.median'),
+                          paste0(col, '.mean'))
         } else {
             out_cols <- c(out_cols, col)
         }
