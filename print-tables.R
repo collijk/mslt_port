@@ -65,8 +65,8 @@ load_csv_files <- function(filenames) {
     df
 }
 
-load_data <- function(data_dir = '.') {
-    pattern <- 'mslt_tobacco_.*_mm\\.csv'
+load_data <- function(data_dir = 'results') {
+    pattern <- 'mslt_tobacco_.*_(erad|tax|tfg)_mm\\.csv'
     filenames <- list.files(path = data_dir, pattern = pattern,
                             full.names = TRUE)
     df <- load_csv_files(filenames)
@@ -196,8 +196,8 @@ print_LY_HALY_ACMR_YLD_table <- function(df) {
 }
 
 
-load_table2_files <- function(data_dir = '.') {
-    re_mm <- 'mslt_reduce_.*_mm\\.csv'
+load_table2_files <- function(data_dir = 'results') {
+    re_mm <- 'mslt_reduce_(acmr|chd)_mm\\.csv'
 
     mm_files <- list.files(path = data_dir, pattern = re_mm,
                            full.names = TRUE)
